@@ -141,3 +141,10 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# =============================================
+# Мои личные конфиги с секретами (не загружать!)
+config.js
+*.config.js
+!config.example.js
+# =============================================
