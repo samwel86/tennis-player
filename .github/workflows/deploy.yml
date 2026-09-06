@@ -10,10 +10,17 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # 🔥 Используем самую свежую версию v4, которая должна быть совместима
+      # Шаг 1: Принудительно установить Node.js 24
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      
+      # Шаг 2: Скачать код (уже с Node.js 24)
       - name: Checkout code
         uses: actions/checkout@v4
       
+      # Шаг 3: Создать config.js
       - name: Create config.js
         run: |
           echo "// ⚠️ Этот файл создан автоматически через GitHub Actions" > config.js
@@ -28,12 +35,13 @@ jobs:
           echo "    measurementId: \"G-VJC0J5X45C\"" >> config.js
           echo "};" >> config.js
       
+      # Шаг 4: Проверить config.js
       - name: Verify config.js
         run: |
           echo "✅ config.js создан!"
           cat config.js | sed 's/\"${{ secrets.FIREBASE_API_KEY }}\"/\"***HIDDEN***\"/g'
       
-      # 🔥 Используем самую свежую версию v4
+      # Шаг 5: Деплой
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
