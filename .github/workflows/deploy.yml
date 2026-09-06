@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # ✅ Используем последнюю версию v4
+      # 🔥 Используем самую свежую версию v4, которая должна быть совместима
       - name: Checkout code
         uses: actions/checkout@v4
       
@@ -33,7 +33,7 @@ jobs:
           echo "✅ config.js создан!"
           cat config.js | sed 's/\"${{ secrets.FIREBASE_API_KEY }}\"/\"***HIDDEN***\"/g'
       
-      # ✅ Используем последнюю версию v4
+      # 🔥 Используем самую свежую версию v4
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
