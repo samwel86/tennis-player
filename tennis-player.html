@@ -1,0 +1,4772 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Анализ теннисных матчей</title>
+
+    <!-- Подключаем Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <!-- ✅ БЕЗОПАСНО: Конфиг загружается из внешнего файла config.js -->
+    <script src="config.js"></script>
+
+    <style>
+        /* ============================================
+           СТИЛИ ДЛЯ СТРАНИЦЫ ВХОДА
+           ============================================ */
+        .login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0a2d3f 0%, #1d5f7a 50%, #2a7a74 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+
+        .login-overlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .login-box {
+            background: white;
+            border-radius: 20px;
+            padding: 40px 35px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            text-align: center;
+            animation: fadeInUp 0.6s ease;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-box .logo {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .login-box h2 {
+            color: #0a2d3f;
+            font-size: 1.4rem;
+            margin-bottom: 6px;
+        }
+
+        .login-box .subtitle {
+            color: #7599ae;
+            font-size: 0.85rem;
+            margin-bottom: 25px;
+        }
+
+        .login-box .form-group {
+            margin-bottom: 16px;
+            text-align: left;
+        }
+
+        .login-box .form-group label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #1f4b61;
+            margin-bottom: 4px;
+        }
+
+        .login-box .form-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid #cfe0eb;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+            background: #f8faff;
+            box-sizing: border-box;
+        }
+
+        .login-box .form-group input:focus {
+            border-color: #1d5f7a;
+            background: white;
+        }
+
+        .login-box .form-group input.error {
+            border-color: #b13e3e;
+            background: #fdf0f0;
+        }
+
+        .login-box .btn-login {
+            width: 100%;
+            padding: 12px;
+            background: #1d5f7a;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            margin-top: 8px;
+        }
+
+        .login-box .btn-login:hover {
+            background: #154a5e;
+        }
+
+        .login-box .btn-login:active {
+            transform: scale(0.97);
+        }
+
+        .login-box .btn-login:disabled {
+            background: #a0b8c8;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .login-box .error-message {
+            color: #b13e3e;
+            font-size: 0.75rem;
+            margin-top: 10px;
+            min-height: 20px;
+        }
+
+        .login-box .hint {
+            color: #7599ae;
+            font-size: 0.7rem;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #e2eff7;
+        }
+
+        .login-box .hint strong {
+            color: #1d5f7a;
+        }
+
+        /* ============================================
+           СТИЛЬ ДЛЯ БЛОКА КОДА МАТЧА
+           ============================================ */
+        .share-box {
+            background: #f0f8ff;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 2px solid #1d5f7a;
+            margin: 8px 0;
+            text-align: center;
+            display: none;
+        }
+        .share-box.visible {
+            display: block !important;
+        }
+        .share-box .label {
+            font-size: 0.6rem;
+            color: #7599ae;
+            text-transform: uppercase;
+        }
+        .share-box .code {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #1d5f7a;
+            letter-spacing: 3px;
+            font-family: monospace;
+            margin: 4px 0;
+        }
+        .share-box .buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 6px;
+            flex-wrap: wrap;
+        }
+        .share-box .buttons button {
+            padding: 6px 16px;
+            border-radius: 20px;
+            border: none;
+            font-weight: 600;
+            font-size: 0.7rem;
+            cursor: pointer;
+        }
+        .share-box .buttons .copy-btn {
+            background: #1d5f7a;
+            color: white;
+        }
+        .share-box .buttons .whatsapp-btn {
+            background: #25D366;
+            color: white;
+        }
+        .share-box .buttons .telegram-btn {
+            background: #0088cc;
+            color: white;
+        }
+
+        /* ============================================
+           ВСЕ ОСТАЛЬНЫЕ СТИЛИ
+           ============================================ */
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #e8f0f6;
+            min-height: 100vh;
+            padding: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: white;
+            border-radius: 16px;
+            padding: 12px 14px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+        }
+
+        h1 {
+            font-size: 1.2rem;
+            color: #0a2d3f;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        h1 .server-ball {
+            width: 24px;
+            height: 24px;
+            animation: none;
+        }
+
+        .instruction-section {
+            background: #f8faff;
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 12px;
+            border: 1px solid #e2eff7;
+        }
+
+        .instruction-section .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .instruction-section .header h3 {
+            font-size: 0.9rem;
+            color: #0a2d3f;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .instruction-section .header .toggle-icon {
+            font-size: 1.2rem;
+            transition: transform 0.3s;
+        }
+
+        .instruction-section .header .toggle-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .instruction-content {
+            overflow: hidden;
+            max-height: 0;
+            transition: max-height 0.4s ease;
+        }
+
+        .instruction-content.open {
+            max-height: 5000px;
+        }
+
+        .instruction-content .inner {
+            padding-top: 10px;
+            border-top: 1px solid #e2eff7;
+        }
+
+        .instruction-content .inner h4 {
+            font-size: 0.8rem;
+            color: #0a2d3f;
+            margin: 12px 0 6px 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .instruction-content .inner h4:first-child {
+            margin-top: 0;
+        }
+
+        .instruction-content .inner p {
+            font-size: 0.7rem;
+            color: #1f4b61;
+            line-height: 1.5;
+            margin-bottom: 6px;
+        }
+
+        .instruction-content .inner .btn-desc {
+            background: white;
+            border-radius: 8px;
+            padding: 6px 10px;
+            margin-bottom: 4px;
+            border: 1px solid #e2eff7;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            font-size: 0.65rem;
+        }
+
+        .instruction-content .inner .btn-desc .btn-example {
+            font-weight: 600;
+            color: #1d5f7a;
+            white-space: nowrap;
+            background: #e9f2f9;
+            padding: 2px 8px;
+            border-radius: 12px;
+        }
+
+        .instruction-content .inner .btn-desc .btn-example.green {
+            background: #d4edda;
+            color: #1d7a4a;
+        }
+
+        .instruction-content .inner .btn-desc .btn-example.red {
+            background: #f8dddd;
+            color: #b13e3e;
+        }
+
+        .instruction-content .inner .btn-desc .btn-example.yellow {
+            background: #fff3cd;
+            color: #8a6a1a;
+        }
+
+        .instruction-content .inner .btn-desc .btn-example.blue {
+            background: #d6e8f2;
+            color: #1d5f7a;
+        }
+
+        .instruction-content .inner .btn-desc .btn-example.gold {
+            background: #fff8e0;
+            color: #8a6a1a;
+        }
+
+        .instruction-content .inner .btn-desc .stat-change {
+            font-weight: 600;
+            color: #0a2d3f;
+            font-size: 0.6rem;
+        }
+
+        .instruction-content .inner .btn-desc .stat-change .arrow {
+            color: #1d7a4a;
+        }
+
+        .instruction-content .inner .legend-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            margin: 6px 0;
+        }
+
+        .instruction-content .inner .legend-grid .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.6rem;
+            padding: 4px 8px;
+            border-radius: 8px;
+            background: white;
+            border: 1px solid #e2eff7;
+        }
+
+        .instruction-content .inner .legend-grid .legend-item .dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .instruction-content .inner .legend-grid .legend-item .dot.green { background: #1d7a4a; }
+        .instruction-content .inner .legend-grid .legend-item .dot.yellow { background: #d4a830; }
+        .instruction-content .inner .legend-grid .legend-item .dot.red { background: #b13e3e; }
+        .instruction-content .inner .legend-grid .legend-item .dot.blue { background: #1d5f7a; }
+        .instruction-content .inner .legend-grid .legend-item .dot.gold { background: #d4a830; border: 1.5px solid #b8960f; }
+        .instruction-content .inner .legend-grid .legend-item .dot.retired { background: #8a6a1a; }
+
+        .instruction-content .inner .tip-box {
+            background: #e9f2f9;
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin: 6px 0;
+            border-left: 3px solid #1d5f7a;
+        }
+
+        .instruction-content .inner .tip-box strong {
+            color: #0a2d3f;
+        }
+
+        .instruction-content .inner .tip-box ul {
+            margin: 4px 0 0 16px;
+            font-size: 0.65rem;
+            color: #1f4b61;
+        }
+
+        .instruction-content .inner .tip-box ul li {
+            margin-bottom: 2px;
+        }
+
+        .instruction-content .inner table {
+            font-size: 0.6rem;
+            min-width: auto;
+            margin: 6px 0;
+        }
+
+        .instruction-content .inner table th {
+            font-size: 0.5rem;
+            padding: 3px 4px;
+        }
+
+        .instruction-content .inner table td {
+            padding: 3px 4px;
+            font-size: 0.55rem;
+        }
+
+        @media (max-width: 600px) {
+            .instruction-content .inner .legend-grid {
+                grid-template-columns: 1fr;
+            }
+            .instruction-content .inner .btn-desc {
+                font-size: 0.55rem;
+                padding: 4px 6px;
+            }
+        }
+
+        .games-manager {
+            background: #f8faff;
+            border-radius: 12px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            border: 1px solid #e2eff7;
+        }
+
+        .games-manager .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .games-manager .header h3 {
+            font-size: 0.8rem;
+            color: #0a2d3f;
+            margin: 0;
+        }
+
+        .games-list {
+            display: none;
+        }
+
+        .games-manager .actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+
+        .btn {
+            background: white;
+            border: 1.5px solid #cfe0eb;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.7rem;
+            color: #1f4b61;
+            cursor: pointer;
+            transition: 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            touch-action: manipulation;
+            min-height: 28px;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .btn-primary {
+            background: #1d5f7a;
+            border-color: #1d5f7a;
+            color: white;
+        }
+
+        .btn-success {
+            background: #2a7a4a;
+            border-color: #2a7a4a;
+            color: white;
+        }
+
+        .btn-outline {
+            background: transparent;
+        }
+
+        .btn-danger {
+            background: #b13e3e20;
+            border-color: #dba8a8;
+            color: #852f2f;
+        }
+
+        .btn-warning {
+            background: #f0c04020;
+            border-color: #d4a830;
+            color: #8a6a1a;
+        }
+
+        .btn-export {
+            background: #4a7a9e20;
+            border-color: #4a7a9e;
+            color: #1d5f7a;
+        }
+
+        .btn-import {
+            background: #4a7a9e20;
+            border-color: #4a7a9e;
+            color: #1d5f7a;
+        }
+
+        .btn-start {
+            background: #1d7a4a;
+            border-color: #1d7a4a;
+            color: white;
+            font-weight: 700;
+            padding: 8px 20px;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            width: 100%;
+        }
+
+        .btn-start:disabled {
+            background: #a0c0b0;
+            border-color: #a0c0b0;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .btn-start:active:not(:disabled) {
+            background: #155a32;
+        }
+
+        .btn-finish {
+            background: #dc3545;
+            border-color: #dc3545;
+            color: white;
+            font-weight: 700;
+            padding: 8px 20px;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            width: 100%;
+        }
+
+        .btn-finish:hover:not(:disabled) {
+            background: #c82333;
+            border-color: #bd2130;
+        }
+
+        .btn-finish:disabled {
+            background: #e9a0a8;
+            border-color: #e9a0a8;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .btn-retire {
+            background: #8a6a1a;
+            border-color: #8a6a1a;
+            color: white;
+            font-weight: 600;
+            padding: 6px 12px;
+            font-size: 0.65rem;
+            white-space: nowrap;
+            opacity: 0.7;
+        }
+
+        .btn-retire:hover:not(:disabled) {
+            opacity: 1;
+            background: #6a4a0a;
+        }
+
+        .btn-retire:disabled {
+            background: #c0b090;
+            border-color: #c0b090;
+            cursor: not-allowed;
+            opacity: 0.4;
+        }
+
+        .btn-fault {
+            background: #f0c040;
+            border-color: #d4a830;
+            color: #8a6a1a;
+            font-weight: 700;
+            padding: 8px 16px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+        }
+
+        .btn-fault:hover:not(:disabled) {
+            background: #e0b030;
+        }
+
+        .btn-fault:disabled {
+            background: #e8d8b0;
+            border-color: #c0b090;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .file-input-hidden {
+            display: none;
+        }
+
+        .match-setup-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: flex-start;
+            margin: 6px 0 4px 0;
+        }
+
+        .match-setup-container .field-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex: 1 1 100%;
+            flex-wrap: wrap;
+        }
+
+        .match-setup-container .field-group label {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: #1f4b61;
+            white-space: nowrap;
+            min-width: 55px;
+            width: 55px;
+            flex-shrink: 0;
+        }
+
+        .match-setup-container input {
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1.5px solid #cbdde8;
+            font-size: 0.7rem;
+            background: white;
+            outline: none;
+            height: 28px;
+            flex: 1 1 auto;
+            min-width: 60px;
+            width: auto;
+        }
+
+        .match-setup-container input:focus {
+            border-color: #2f7d9e;
+        }
+
+        .match-setup-container input[type="text"],
+        .match-setup-container input[type="date"] {
+            min-width: 80px;
+            flex: 1 1 auto;
+            width: auto;
+        }
+
+        .match-setup-container input[name="wtn"],
+        .match-setup-container input[name="itf"],
+        .match-setup-container input[name="flag"] {
+            max-width: 55px;
+            min-width: 45px;
+            flex: 0 0 auto;
+            text-align: center;
+        }
+
+        .match-format-row {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex: 1 1 100%;
+            flex-wrap: wrap;
+            margin-top: 2px;
+            padding-left: 0;
+        }
+
+        .match-format-row label {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: #1f4b61;
+            white-space: nowrap;
+            min-width: 55px;
+            width: 55px;
+            flex-shrink: 0;
+        }
+
+        .match-format-row select {
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1.5px solid #cbdde8;
+            font-size: 0.7rem;
+            background: white;
+            outline: none;
+            height: 28px;
+            flex: 1 1 auto;
+            min-width: 80px;
+            width: auto;
+            cursor: pointer;
+            color: #0a2d3f;
+        }
+
+        .match-format-row select:focus {
+            border-color: #2f7d9e;
+        }
+
+        .match-date-row {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex: 1 1 100%;
+            flex-wrap: wrap;
+            margin-top: 2px;
+            padding-left: 0;
+        }
+
+        .match-date-row .field-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex: 1 1 100%;
+            flex-wrap: wrap;
+        }
+
+        .match-date-row .field-item label {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: #1f4b61;
+            white-space: nowrap;
+            min-width: 55px;
+            width: 55px;
+            flex-shrink: 0;
+        }
+
+        .match-date-row .field-item input {
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1.5px solid #cbdde8;
+            font-size: 0.7rem;
+            background: white;
+            outline: none;
+            height: 28px;
+            flex: 1 1 auto;
+            min-width: 80px;
+            width: auto;
+        }
+
+        .match-date-row .field-item input:focus {
+            border-color: #2f7d9e;
+        }
+
+        /* НОВЫЙ СТИЛЬ ДЛЯ ПОЛЯ ТУРНИР */
+        .match-tournament-row {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex: 1 1 100%;
+            flex-wrap: wrap;
+            margin-top: 2px;
+            padding-left: 0;
+        }
+
+        .match-tournament-row .field-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex: 1 1 100%;
+            flex-wrap: wrap;
+        }
+
+        .match-tournament-row .field-item label {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: #1f4b61;
+            white-space: nowrap;
+            min-width: 55px;
+            width: 55px;
+            flex-shrink: 0;
+        }
+
+        .match-tournament-row .field-item input {
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1.5px solid #cbdde8;
+            font-size: 0.7rem;
+            background: white;
+            outline: none;
+            height: 28px;
+            flex: 1 1 auto;
+            min-width: 80px;
+            width: auto;
+        }
+
+        .match-tournament-row .field-item input:focus {
+            border-color: #2f7d9e;
+        }
+
+        .match-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-shrink: 0;
+            min-width: 140px;
+            width: 100%;
+            margin-top: 4px;
+        }
+
+        .match-controls .btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .retire-controls {
+            display: flex;
+            gap: 4px;
+            margin-top: 2px;
+        }
+
+        .retire-controls .btn {
+            flex: 1;
+            justify-content: center;
+            font-size: 0.6rem;
+            padding: 4px 8px;
+            min-height: 24px;
+        }
+
+        .server-setup {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0;
+            font-size: 0.7rem;
+            color: #1f4b61;
+            font-weight: 600;
+            flex-wrap: wrap;
+        }
+        .server-setup select {
+            padding: 2px 8px;
+            border-radius: 12px;
+            border: 1.5px solid #cbdde8;
+            font-size: 0.7rem;
+            outline: none;
+            color: #0a2d3f;
+            cursor: pointer;
+            min-width: 120px;
+        }
+
+        .actions-buttons-container {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin: 6px 0;
+        }
+
+        .actions-buttons-container .btn {
+            font-size: 0.7rem;
+            padding: 4px 12px;
+            min-height: 28px;
+        }
+
+        .btn-save-stats {
+            background: #d4a830;
+            border-color: #d4a830;
+            color: white;
+            font-weight: 700;
+        }
+        .btn-save-stats:hover:not(:disabled) {
+            background: #b8960f;
+        }
+        .btn-save-stats:disabled {
+            background: #d4c090;
+            border-color: #d4c090;
+            opacity: 0.6;
+        }
+
+        .serve-status {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #1d5f7a;
+            background: #e9f2f9;
+            padding: 2px 12px;
+            border-radius: 20px;
+            text-align: center;
+            min-width: 120px;
+            margin: 4px 0 6px 0;
+        }
+
+        .sets-container {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            background: #e9f2f9;
+            border-radius: 30px;
+            padding: 6px 12px;
+            margin-bottom: 12px;
+            align-items: center;
+        }
+
+        .sets-container > span {
+            font-weight: 700;
+            color: #0a2d3f;
+            font-size: 0.65rem;
+        }
+
+        .set-block {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: white;
+            padding: 2px 8px 2px 10px;
+            border-radius: 20px;
+            border: 1.5px solid #cfe0eb;
+            flex: 0 0 auto;
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: #0a2d3f;
+        }
+
+        .set-block.active {
+            border-color: #1d5f7a;
+            background: #f0f8ff;
+            box-shadow: 0 0 0 2px rgba(29, 95, 122, 0.12);
+        }
+
+        .set-block .set-score {
+            background: #e9f2f9;
+            padding: 0 6px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+        }
+
+        .set-block .set-status {
+            font-size: 0.5rem;
+            padding: 1px 4px;
+            border-radius: 12px;
+            text-transform: uppercase;
+        }
+
+        .set-block .set-status.win { background: #d4edda; color: #1d7a4a; }
+        .set-block .set-status.lose { background: #f8dddd; color: #b13e3e; }
+        .set-block .set-status.active-set { background: #d6e8f2; color: #1d5f7a; }
+        .set-block .set-status.waiting { background: #f0f0f0; color: #999; }
+        .set-block .set-status.tiebreak { background: #fff3cd; color: #8a6a1a; font-weight: 700; }
+
+        .set-tiebreak-result {
+            font-size: 0.55rem;
+            color: #d4a830;
+            margin-left: 4px;
+            font-weight: 700;
+        }
+
+        .live-panel {
+            background: #f8faff;
+            border-radius: 16px;
+            padding: 12px 14px;
+            margin-bottom: 12px;
+            border: 1px solid #e2eff7;
+            transition: 0.2s;
+            border-left: 4px solid transparent;
+        }
+
+        .live-panel.tiebreak-mode {
+            border-left: 4px solid #d4a830;
+            background: #fffcf0;
+        }
+
+        .live-panel.match-finished {
+            border-left: 4px solid #dc3545;
+            background: #fdf0f0;
+            opacity: 0.85;
+        }
+
+        .live-panel.match-retired {
+            border-left: 4px solid #8a6a1a;
+            background: #fdf8f0;
+            opacity: 0.85;
+        }
+
+        .live-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+
+        .live-header h2 {
+            font-size: 0.9rem;
+            color: #0a2d3f;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .live-header .server-ball {
+            width: 20px;
+            height: 20px;
+            animation: none;
+        }
+
+        .live-header .game-number {
+            background: #1d5f7a;
+            color: white;
+            padding: 2px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.7rem;
+        }
+
+        .players-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #e9f2f9;
+            border-radius: 20px;
+            padding: 6px 14px;
+            margin-bottom: 6px;
+            font-weight: 700;
+            font-size: 0.75rem;
+        }
+
+        .players-info .we { 
+            color: #1d7a4a; 
+            display: flex; 
+            align-items: center; 
+            gap: 6px; 
+            transition: 0.2s;
+            padding: 2px 8px;
+            border-radius: 12px;
+        }
+        .players-info .them { 
+            color: #b13e3e; 
+            display: flex; 
+            align-items: center; 
+            gap: 6px; 
+            transition: 0.2s;
+            padding: 2px 8px;
+            border-radius: 12px;
+        }
+        
+        .players-info .serving-now {
+            background: rgba(255, 255, 255, 0.7);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .server-ball { 
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            background-image: url('tennis.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            vertical-align: middle;
+            animation: pulse 0.7s infinite alternate; 
+            margin-right: 4px;
+            flex-shrink: 0;
+        }
+
+        @keyframes pulse { 
+            0% { transform: scale(0.9); opacity: 0.8; filter: drop-shadow(0 0 2px rgba(186, 218, 85, 0.4)); } 
+            100% { transform: scale(1.25); opacity: 1; filter: drop-shadow(0 0 8px rgba(186, 218, 85, 0.9)); } 
+        }
+
+        .score-display {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            background: white;
+            border-radius: 40px;
+            padding: 6px 16px;
+            border: 1.5px solid #cfe0eb;
+            margin-bottom: 8px;
+            transition: 0.2s;
+        }
+
+        .score-display.tiebreak-display {
+            border-color: #d4a830;
+            background: #fff8e0;
+        }
+
+        .score-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 50px;
+        }
+
+        .score-item .player-label {
+            font-size: 0.5rem;
+            text-transform: uppercase;
+            color: #1f4b61;
+            font-weight: 600;
+        }
+
+        .score-item .score-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #0a2d3f;
+            min-width: 30px;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .score-item.we-score-item .score-value { color: #1d7a4a; }
+        .score-item.them-score-item .score-value { color: #b13e3e; }
+        .score-divider { font-size: 1.2rem; color: #7599ae; flex-shrink: 0; }
+
+        .points-history {
+            background: white;
+            border-radius: 12px;
+            padding: 4px 10px;
+            margin-bottom: 6px;
+            border: 1px dashed #cbdde8;
+            min-height: 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .points-history .label {
+            font-size: 0.5rem;
+            text-transform: uppercase;
+            color: #7599ae;
+            font-weight: 600;
+        }
+
+        .points-history .label.tiebreak-label { color: #8a6a1a; }
+
+        .points-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .points-side {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            flex: 1;
+        }
+
+        .points-side.we-side { justify-content: flex-start; }
+        .points-side.them-side { justify-content: flex-end; }
+
+        .points-side .point-item {
+            background: white;
+            padding: 1px 8px;
+            border-radius: 12px;
+            border: 1px solid #cfe0eb;
+            font-weight: 600;
+            font-size: 0.6rem;
+            color: #0a2d3f;
+        }
+
+        .points-side .point-item.winner-we { background: #d4edda; border-color: #8bc9a0; color: #1d7a4a; }
+        .points-side .point-item.winner-them { background: #f8dddd; border-color: #dba8a8; color: #b13e3e; }
+        .points-side .point-item.tiebreak-point { border-color: #d4a830; background: #fff8e0; }
+        .points-side .point-item.tiebreak-point.winner-we { background: #d4edda; border-color: #1d7a4a; }
+        .points-side .point-item.tiebreak-point.winner-them { background: #f8dddd; border-color: #b13e3e; }
+        .points-divider { font-size: 0.6rem; color: #7599ae; flex-shrink: 0; }
+
+        .score-buttons {
+            display: flex;
+            gap: 12px;
+            margin: 10px 0 6px 0;
+        }
+
+        .score-buttons .btn {
+            flex: 1;
+            padding: 16px 10px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            min-height: 70px;
+            border-radius: 30px;
+            justify-content: center;
+            border-width: 3px;
+            touch-action: manipulation;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .score-buttons .btn-we { background: #1d7a4a; border-color: #1d7a4a; color: white; }
+        .score-buttons .btn-we:active { background: #155a32; }
+        .score-buttons .btn-them { background: #b13e3e; border-color: #b13e3e; color: white; }
+        .score-buttons .btn-them:active { background: #8a2a2a; }
+
+        .tech-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+        .tech-buttons .btn {
+            font-size: 0.6rem;
+            padding: 6px 4px;
+            min-height: 32px;
+            justify-content: center;
+            text-transform: uppercase;
+            width: 100%;
+        }
+        
+        .tech-buttons .btn-serve {
+            background: #1d5f7a;
+            border-color: #1d5f7a;
+            color: white;
+            font-weight: 700;
+        }
+        
+        .tech-buttons .btn-serve:hover:not(:disabled) {
+            background: #154a5e;
+        }
+        
+        .tech-buttons .btn-serve:disabled {
+            background: #a0b8c8;
+            border-color: #a0b8c8;
+            opacity: 0.6;
+        }
+        
+        .tech-buttons .btn-serve-fault {
+            background: #f0c040;
+            border-color: #d4a830;
+            color: #8a6a1a;
+            font-weight: 700;
+        }
+        
+        .tech-buttons .btn-serve-fault:hover:not(:disabled) {
+            background: #e0b030;
+        }
+        
+        .tech-buttons .btn-serve-fault:disabled {
+            background: #e8d8b0;
+            border-color: #c0b090;
+            opacity: 0.5;
+        }
+
+        .actions-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 6px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 4px;
+            margin: 8px 0 10px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 4px 2px;
+            text-align: center;
+            border: 1px solid #dfecf3;
+        }
+
+        .stat-card .number {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #0a2d3f;
+            line-height: 1.2;
+        }
+
+        .stat-card .label {
+            font-size: 0.45rem;
+            text-transform: uppercase;
+            color: #3d718a;
+            line-height: 1.1;
+        }
+
+        .stat-card .label small {
+            font-size: 0.4rem;
+            display: block;
+            color: #7599ae;
+        }
+
+        .stat-card.highlight-green { border-color: #1d7a4a; background: #d4edda; }
+        .stat-card.highlight-yellow { border-color: #d4a830; background: #f8f0d4; }
+        .stat-card.highlight-red { border-color: #b13e3e; background: #f8dddd; }
+        .stat-card.highlight-blue { border-color: #1d5f7a; background: #d6e8f2; }
+        .stat-card.highlight-gold { border-color: #d4a830; background: #fff8e0; }
+        .stat-card.highlight-time { border-color: #6c757d; background: #f8f9fa; }
+
+        .stat-card.highlight-break { 
+            border-color: #8a2be2; 
+            background: #f0ecf8; 
+        }
+        .stat-card.highlight-break-saved { 
+            border-color: #2e8b57; 
+            background: #e8f5ec; 
+        }
+
+        .table-wrap {
+            background: white;
+            border-radius: 12px;
+            overflow-x: auto;
+            border: 1px solid #e2eff7;
+            padding: 2px;
+            margin-top: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.6rem;
+            min-width: 320px;
+        }
+
+        th {
+            text-align: left;
+            padding: 4px 4px 3px 6px;
+            font-weight: 600;
+            color: #1f4b61;
+            border-bottom: 1.5px solid #cde0eb;
+            font-size: 0.5rem;
+            text-transform: uppercase;
+            position: sticky;
+            top: 0;
+            background: white;
+        }
+
+        td {
+            padding: 4px 4px 4px 6px;
+            border-bottom: 1px solid #e4edf4;
+            vertical-align: middle;
+        }
+
+        .row-empty { text-align: center; color: #7599ae; padding: 12px; font-style: italic; font-size: 0.7rem; }
+        .badge { background: #d6e8f2; border-radius: 12px; padding: 1px 6px; font-size: 0.55rem; font-weight: 600; color: #1d5f7a; display: inline-block; }
+        .badge-tiebreak { background: #fff3cd; color: #8a6a1a; }
+        .badge-break { background: #f0ecf8; color: #8a2be2; }
+        .badge-break-saved { background: #e8f5ec; color: #2e8b57; }
+        .game-badge { border-radius: 12px; padding: 1px 8px; font-weight: 600; font-size: 0.55rem; display: inline-block; }
+        .game-badge.win { background: #d4edda; color: #1d7a4a; }
+        .game-badge.lose { background: #f8dddd; color: #b13e3e; }
+        .game-badge.retired { background: #fdf8f0; color: #8a6a1a; border: 1px solid #d4a830; }
+
+        .points-inline { display: flex; flex-wrap: wrap; gap: 2px; }
+        .points-inline .p { background: #f0f5fa; padding: 0 4px; border-radius: 8px; font-size: 0.5rem; font-weight: 500; }
+        .points-inline .p.win-we { background: #d4edda; color: #1d7a4a; }
+        .points-inline .p.win-them { background: #f8dddd; color: #b13e3e; }
+        .points-inline .p.tiebreak-p { background: #fff8e0; border: 1px solid #d4a830; }
+
+        .game-analysis { font-size: 0.5rem; font-weight: 600; padding: 2px 8px; border-radius: 12px; display: inline-block; white-space: nowrap; }
+        .game-analysis.easy-win { background: #d4edda; color: #1d7a4a; }
+        .game-analysis.normal { background: #fff3cd; color: #8a6a1a; }
+        .game-analysis.hard { background: #f8dddd; color: #b13e3e; }
+        .game-analysis.epic { background: #d6e8f2; color: #1d5f7a; }
+        .game-analysis.tiebreak { background: #fff8e0; color: #8a6a1a; border: 1.5px solid #d4a830; }
+        .game-analysis.retired { background: #fdf8f0; color: #8a6a1a; border: 1px solid #d4a830; }
+        .game-analysis.break { background: #f0ecf8; color: #8a2be2; border: 1px solid #8a2be2; }
+
+        .footer-tip {
+            font-size: 0.55rem;
+            color: #547d94;
+            margin-top: 8px;
+            padding-top: 6px;
+            border-top: 1px solid #d7e6f0;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 4px 10px;
+        }
+
+        .footer-tip .legend { display: flex; gap: 8px; flex-wrap: wrap; }
+        .footer-tip .legend span { display: flex; align-items: center; gap: 3px; }
+        .footer-tip .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+        .footer-tip .legend .dot.green { background: #1d7a4a; }
+        .footer-tip .legend .dot.yellow { background: #d4a830; }
+        .footer-tip .legend .dot.red { background: #b13e3e; }
+        .footer-tip .legend .dot.blue { background: #1d5f7a; }
+        .footer-tip .legend .dot.gold { background: #d4a830; border: 1.5px solid #b8960f; }
+        .footer-tip .legend .dot.retired { background: #8a6a1a; }
+        .footer-tip .legend .dot.break { background: #8a2be2; }
+        .footer-tip .legend .dot.break-saved { background: #2e8b57; }
+
+        .match-status {
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #1d7a4a;
+            padding: 4px 0;
+            margin-bottom: 6px;
+            border-radius: 12px;
+            background: #d4edda;
+            display: none;
+        }
+
+        .match-status.active {
+            display: block;
+        }
+
+        .match-status.finished {
+            background: #dc3545;
+            color: white;
+        }
+
+        .match-status.retired {
+            background: #8a6a1a;
+            color: white;
+        }
+
+        .timer-display {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #0a2d3f;
+            padding: 2px 12px;
+            background: #e9f2f9;
+            border-radius: 20px;
+        }
+
+        .timer-display .timer-icon {
+            font-size: 0.9rem;
+        }
+
+        .timer-display #timer {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #1d5f7a;
+            font-variant-numeric: tabular-nums;
+            min-width: 50px;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .match-history-container {
+            margin-top: 12px;
+            padding: 10px 14px;
+            background: #f8faff;
+            border-radius: 12px;
+            border: 1px solid #e2eff7;
+        }
+
+        .match-history-container h3 {
+            font-size: 0.8rem;
+            color: #0a2d3f;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .match-history-container .history-empty {
+            color: #7599ae;
+            font-size: 0.7rem;
+            font-style: italic;
+            padding: 4px 0;
+        }
+
+        .match-history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .match-history-item {
+            background: white;
+            padding: 4px 10px;
+            border-radius: 8px;
+            border: 1px solid #e2eff7;
+            font-size: 0.65rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .match-history-item .match-result {
+            font-weight: 600;
+            color: #0a2d3f;
+        }
+
+        .match-history-item .match-winner {
+            font-weight: 700;
+            padding: 1px 8px;
+            border-radius: 12px;
+            font-size: 0.6rem;
+        }
+
+        .match-history-item .match-winner.win-p1 {
+            background: #d4edda;
+            color: #1d7a4a;
+        }
+
+        .match-history-item .match-winner.win-p2 {
+            background: #f8dddd;
+            color: #b13e3e;
+        }
+
+        .match-history-item .match-winner.win-draw {
+            background: #fff3cd;
+            color: #8a6a1a;
+        }
+
+        .match-history-item .match-winner.win-retired {
+            background: #fdf8f0;
+            color: #8a6a1a;
+            border: 1px solid #d4a830;
+        }
+
+        .match-history-item .match-date {
+            color: #7599ae;
+            font-size: 0.55rem;
+        }
+
+        .match-history-item .match-delete {
+            color: #b13e3e;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 0.6rem;
+            padding: 0 4px;
+        }
+
+        .match-history-item .match-delete:hover {
+            background: #f8dddd;
+            border-radius: 50%;
+        }
+
+        .clear-history-btn {
+            margin-top: 6px;
+            font-size: 0.6rem;
+            padding: 2px 10px;
+        }
+
+        @media (max-width: 600px) {
+            .match-setup-container .field-group {
+                flex: 1 1 100%;
+                gap: 4px;
+            }
+            
+            .match-setup-container .field-group label {
+                min-width: 48px;
+                width: 48px;
+                font-size: 0.6rem;
+            }
+
+            .match-setup-container input[type="text"],
+            .match-setup-container input[type="date"] {
+                min-width: 60px;
+                flex: 1 1 auto;
+                font-size: 0.65rem;
+                padding: 3px 8px;
+                height: 26px;
+            }
+
+            .match-setup-container input[name="wtn"],
+            .match-setup-container input[name="itf"],
+            .match-setup-container input[name="flag"] {
+                max-width: 42px;
+                min-width: 32px;
+                font-size: 0.6rem;
+                padding: 2px 4px;
+                height: 24px;
+            }
+
+            .match-format-row label {
+                min-width: 48px;
+                width: 48px;
+                font-size: 0.6rem;
+            }
+
+            .match-format-row select {
+                min-width: 60px;
+                flex: 1 1 auto;
+                font-size: 0.65rem;
+                padding: 3px 8px;
+                height: 26px;
+            }
+
+            .match-date-row {
+                gap: 4px;
+                padding-left: 0;
+            }
+
+            .match-date-row .field-item {
+                flex: 1 1 100%;
+                gap: 4px;
+            }
+
+            .match-date-row .field-item label {
+                min-width: 48px;
+                width: 48px;
+                font-size: 0.6rem;
+            }
+
+            .match-date-row .field-item input {
+                min-width: 60px;
+                flex: 1 1 auto;
+                font-size: 0.65rem;
+                padding: 3px 8px;
+                height: 26px;
+            }
+
+            /* АДАПТИВ ДЛЯ ТУРНИРА */
+            .match-tournament-row {
+                gap: 4px;
+                padding-left: 0;
+            }
+
+            .match-tournament-row .field-item {
+                flex: 1 1 100%;
+                gap: 4px;
+            }
+
+            .match-tournament-row .field-item label {
+                min-width: 48px;
+                width: 48px;
+                font-size: 0.6rem;
+            }
+
+            .match-tournament-row .field-item input {
+                min-width: 60px;
+                flex: 1 1 auto;
+                font-size: 0.65rem;
+                padding: 3px 8px;
+                height: 26px;
+            }
+
+            .match-controls {
+                flex-direction: row;
+                flex-wrap: wrap;
+                min-width: unset;
+            }
+            
+            .match-controls .btn {
+                flex: 1 1 45%;
+                min-width: 80px;
+                font-size: 0.65rem;
+                padding: 6px 8px;
+            }
+
+            .match-controls .btn-start,
+            .match-controls .btn-finish {
+                flex: 1 1 100%;
+            }
+
+            .retire-controls .btn {
+                font-size: 0.55rem;
+                padding: 3px 6px;
+                min-height: 22px;
+            }
+
+            .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+            .score-display { padding: 4px 10px; gap: 8px; }
+            .container { padding: 8px 10px; }
+            .btn { font-size: 0.6rem; padding: 3px 8px; min-height: 24px; }
+            .score-buttons .btn { font-size: 1.1rem; padding: 12px 6px; min-height: 55px; }
+            .live-panel { padding: 8px 10px; }
+            .server-setup select { min-width: 100px; font-size: 0.6rem; }
+            .timer-display { font-size: 0.7rem; }
+            .timer-display #timer { font-size: 0.8rem; min-width: 40px; }
+            .actions-buttons-container .btn { font-size: 0.6rem; padding: 3px 8px; min-height: 24px; }
+            
+            .tech-buttons {
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 4px;
+            }
+            .tech-buttons .btn {
+                font-size: 0.5rem;
+                padding: 4px 2px;
+                min-height: 28px;
+            }
+        }
+
+        @media (max-width: 400px) {
+            .match-setup-container .field-group label {
+                min-width: 40px;
+                width: 40px;
+                font-size: 0.55rem;
+            }
+
+            .match-setup-container input[type="text"],
+            .match-setup-container input[type="date"] {
+                min-width: 50px;
+                font-size: 0.6rem;
+                padding: 2px 6px;
+                height: 24px;
+            }
+
+            .match-setup-container input[name="wtn"],
+            .match-setup-container input[name="itf"],
+            .match-setup-container input[name="flag"] {
+                max-width: 36px;
+                min-width: 28px;
+                font-size: 0.55rem;
+                padding: 2px 3px;
+                height: 22px;
+            }
+
+            .match-format-row label {
+                min-width: 40px;
+                width: 40px;
+                font-size: 0.55rem;
+            }
+
+            .match-format-row select {
+                min-width: 50px;
+                font-size: 0.6rem;
+                padding: 2px 6px;
+                height: 24px;
+            }
+
+            .match-date-row .field-item label {
+                min-width: 40px;
+                width: 40px;
+                font-size: 0.55rem;
+            }
+
+            .match-date-row .field-item input {
+                min-width: 50px;
+                font-size: 0.6rem;
+                padding: 2px 6px;
+                height: 24px;
+            }
+
+            .match-tournament-row .field-item label {
+                min-width: 40px;
+                width: 40px;
+                font-size: 0.55rem;
+            }
+
+            .match-tournament-row .field-item input {
+                min-width: 50px;
+                font-size: 0.6rem;
+                padding: 2px 6px;
+                height: 24px;
+            }
+            
+            .tech-buttons {
+                grid-template-columns: 1fr 1fr;
+                gap: 3px;
+            }
+            .tech-buttons .btn {
+                font-size: 0.5rem;
+                padding: 3px 2px;
+                min-height: 26px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ============================================
+     СТРАНИЦА ВХОДА (overlay)
+     ============================================ -->
+<div class="login-overlay" id="loginOverlay">
+    <div class="login-box">
+        <img src="logo.png" alt="Логотип" style="width:48px; height:48px;">
+        <h2>Анализ теннисных матчей</h2>
+        <p class="subtitle">Войдите, чтобы продолжить</p>
+        
+        <div class="form-group">
+            <label for="loginUsername">👤 Имя пользователя</label>
+            <input type="text" id="loginUsername" placeholder="Введите логин" autofocus>
+        </div>
+        
+        <div class="form-group">
+            <label for="loginPassword">🔒 Пароль</label>
+            <input type="password" id="loginPassword" placeholder="Введите пароль">
+        </div>
+        
+        <div class="error-message" id="loginError"></div>
+        
+        <button class="btn-login" id="loginBtn">Войти</button>
+        
+        <div class="hint">
+            <strong>🔑 Для приобретения логина и пароля:</strong><br>
+            Обращаться к: <strong>Самвел</strong> | Тел: <strong>865873101</strong>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+     ОСНОВНОЙ КОНТЕНТ
+     ============================================ -->
+<div class="container" id="mainContent" style="display:none;">
+    <h1><span class="server-ball" style="animation:none; width:24px; height:24px;"></span> Анализ теннисных матчей</h1>
+
+    <!-- ============================================
+    БЛОК КОДА МАТЧА (отображается после создания матча)
+    ============================================ -->
+    <div class="share-box" id="shareBox">
+        <div class="label">📤 Отправьте тренеру</div>
+        <div class="code" id="shareCode">XXXXXX</div>
+        <div class="buttons">
+            <button class="copy-btn" onclick="copyMatchCode()">📋 Копировать код</button>
+            <button class="whatsapp-btn" onclick="shareWhatsApp()">💬 WhatsApp</button>
+            <button class="telegram-btn" onclick="shareTelegram()">✈️ Telegram</button>
+        </div>
+    </div>
+
+    <!-- ============================================
+    РАЗДЕЛ ИНСТРУКЦИИ
+    ============================================ -->
+    <div class="instruction-section" id="instructionSection">
+        <div class="header" onclick="toggleInstruction()">
+            <h3>📖 Инструкция по использованию</h3>
+            <span class="toggle-icon" id="toggleIcon">▼</span>
+        </div>
+        <div class="instruction-content" id="instructionContent">
+            <div class="inner">
+                <h4>🎯 Основные кнопки</h4>
+                <div class="btn-desc">
+                    <span><span class="btn-example green">➕ Очко [Игрок 1]</span> — Добавляет очко Игроку 1</span>
+                    <span class="stat-change">Общий счет очков <span class="arrow">↑</span></span>
+                </div>
+                <div class="btn-desc">
+                    <span><span class="btn-example red">➕ Очко [Игрок 2]</span> — Добавляет очко Игроку 2</span>
+                    <span class="stat-change">Общий счет очков <span class="arrow">↑</span></span>
+                </div>
+
+                <h4>🎾 Кнопки подачи</h4>
+                <div class="btn-desc">
+                    <span><span class="btn-example blue">✅ 1-я подача</span> — Успешная первая подача</span>
+                    <span class="stat-change">1-я подача (успешные): <span class="arrow">+1</span></span>
+                </div>
+                <div class="btn-desc">
+                    <span><span class="btn-example blue">✅ 2-я подача</span> — Успешная вторая подача</span>
+                    <span class="stat-change">2-я подача (успешные): <span class="arrow">+1</span></span>
+                </div>
+                <div class="btn-desc">
+                    <span><span class="btn-example yellow">❌ Ошибка подачи</span> — Ошибка на подаче</span>
+                    <span class="stat-change">Ошибки 1-я/2-я подача: <span class="arrow">+1</span></span>
+                </div>
+
+                <h4>⚡ Специальные кнопки</h4>
+                <div class="btn-desc">
+                    <span><span class="btn-example green">⚡ Ace</span> — Эйс (подача навылет)</span>
+                    <span class="stat-change">Эйсы (Ace): <span class="arrow">+1</span></span>
+                </div>
+                <div class="btn-desc">
+                    <span><span class="btn-example green">🔥 Winner</span> — Удар навылет с игры</span>
+                    <span class="stat-change">Winners: <span class="arrow">+1</span></span>
+                </div>
+                <div class="btn-desc">
+                    <span><span class="btn-example red">❌ DF</span> — Двойная ошибка</span>
+                    <span class="stat-change">Дв. ошибки: <span class="arrow">+1</span> (очко сопернику)</span>
+                </div>
+                <div class="btn-desc">
+                    <span><span class="btn-example yellow">📉 Невынужденная ОН</span> — Невынужденная ошибка Игрока 2</span>
+                    <span class="stat-change">Невынужденные ошибки: <span class="arrow">+1</span> (очко нам)</span>
+                </div>
+                <div class="btn-desc">
+                    <span><span class="btn-example yellow">📉 Невынужденная МЫ</span> — Невынужденная ошибка Игрока 1</span>
+                    <span class="stat-change">Невынужденные ошибки: <span class="arrow">+1</span> (очко сопернику)</span>
+                </div>
+                <div class="btn-desc">
+                    <span><span class="btn-example">↩ Отмена</span> — Отмена последнего розыгрыша</span>
+                    <span class="stat-change">Возврат к предыдущему состоянию</span>
+                </div>
+
+                <h4>🎮 Управление геймом</h4>
+                <div class="btn-desc">
+                    <span><span class="btn-example">✖ Очистить гейм</span> — Очищает текущий гейм</span>
+                    <span class="stat-change">Сброс очков в гейме</span>
+                </div>
+                <div class="btn-desc">
+                    <span><span class="btn-example yellow">🔄 Сбросить всё</span> — Полный сброс матча</span>
+                    <span class="stat-change">ВСЕ счетчики обнуляются</span>
+                </div>
+
+                <h4>🏟️ Управление матчем</h4>
+                <div class="btn-desc">
+                    <span><span class="btn-example green">▶ Начать матч</span> — Начинает новый матч</span>
+                    <span class="stat-change">Все счетчики обнуляются</span>
+                </div>
+                <div class="btn-desc">
+                    <span><span class="btn-example red">⏹ Закончить матч</span> — Завершает матч</span>
+                    <span class="stat-change">Результат в историю</span>
+                </div>
+                <div class="btn-desc">
+                    <span><span class="btn-example red">🚫 Игрок 1 снялся</span> — Снятие Игрока 1</span>
+                    <span class="stat-change">Победитель — Игрок 2</span>
+                </div>
+                <div class="btn-desc">
+                    <span><span class="btn-example red">🚫 Игрок 2 снялся</span> — Снятие Игрока 2</span>
+                    <span class="stat-change">Победитель — Игрок 1</span>
+                </div>
+
+                <h4>💾 Работа с данными</h4>
+                <div class="btn-desc">
+                    <span><span class="btn-example blue">📤 Выгрузить</span> — Экспорт в JSON-файл</span>
+                    <span class="stat-change">Скачивается на компьютер</span>
+                </div>
+                <div class="btn-desc">
+                    <span><span class="btn-example blue">📥 Загрузить</span> — Импорт из JSON-файла</span>
+                    <span class="stat-change">Восстанавливает статистику</span>
+                </div>
+                <div class="btn-desc">
+                    <span><span class="btn-example gold">📸 Сохранить статистику</span> — Сохраняет статистику как изображение</span>
+                    <span class="stat-change">PNG-файл в галерею</span>
+                </div>
+
+                <h4>📊 Что показывают цвета в анализе</h4>
+                <div class="legend-grid">
+                    <div class="legend-item"><span class="dot green"></span> Легкий — до 4 очков</div>
+                    <div class="legend-item"><span class="dot yellow"></span> Средний — 5-6 очков</div>
+                    <div class="legend-item"><span class="dot red"></span> Тяжелый — 7-9 очков</div>
+                    <div class="legend-item"><span class="dot blue"></span> Эпичный — 10+ очков</div>
+                    <div class="legend-item"><span class="dot gold"></span> Тай-брейк — специальный режим</div>
+                    <div class="legend-item"><span class="dot retired"></span> Снятие (Ret)</div>
+                    <div class="legend-item"><span class="dot break"></span> Брейк — выиграл гейм на подаче соперника</div>
+                    <div class="legend-item"><span class="dot break-saved"></span> Брейк-поинт отыгран</div>
+                </div>
+
+                <h4>📝 Как правильно использовать</h4>
+                <div class="tip-box">
+                    <strong>🎾 Для розыгрыша:</strong>
+                    <ul>
+                        <li><strong>На подаче:</strong> Если подача удалась → <strong>"✅ 1-я подача"</strong>. Если ошибка → <strong>"❌ Ошибка подачи"</strong> (переход на 2-ю). На 2-й подаче: успех → <strong>"✅ 2-я подача"</strong>, ошибка → <strong>"❌ Ошибка подачи"</strong> (двойная ошибка).</li>
+                        <li><strong>В розыгрыше:</strong> Выиграл Игрок 1 → <strong>"➕ Очко [Игрок 1]"</strong>. Выиграл Игрок 2 → <strong>"➕ Очко [Игрок 2]"</strong>.</li>
+                        <li><strong>Специальные удары:</strong> Эйс → <strong>"⚡ Ace"</strong>. Виннер → <strong>"🔥 Winner"</strong>. Двойная ошибка → <strong>"❌ DF"</strong>.</li>
+                        <li><strong>Если ошиблись:</strong> Нажмите <strong>"↩ Отмена"</strong> чтобы отменить последнее действие.</li>
+                    </ul>
+                </div>
+
+                <div class="tip-box" style="border-left-color: #8a2be2;">
+                    <strong>💡 Что такое брейк и брейк-поинт:</strong>
+                    <ul>
+                        <li><strong>Брейк-поинт</strong> — ситуация, когда принимающий имеет шанс выиграть гейм на подаче соперника (счёт 15:40, 30:40 или 40:AD).</li>
+                        <li><strong>Брейк</strong> — принимающий выиграл гейм на подаче соперника. Отображается фиолетовым цветом.</li>
+                        <li><strong>Брейк-поинт отыгран</strong> — подающий отыгрался с брейк-поинта и выиграл гейм. Отображается зелёным цветом.</li>
+                        <li>В статистике показывается количество брейк-поинтов, которые отыграл каждый игрок.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================
+    ОСНОВНАЯ ПРОГРАММА
+    ============================================ -->
+    <div class="games-manager">
+        <div class="header">
+            <h3>📁 Настройки матча</h3>
+        </div>
+        
+        <div class="match-setup-container">
+            <div class="field-group">
+                <label>Игрок 1:</label>
+                <input type="text" id="myNameInput" placeholder="Имя">
+                <input type="text" id="flag1Input" placeholder="Флаг" name="flag">
+                <input type="text" id="wtn1Input" placeholder="WTN" name="wtn">
+                <input type="text" id="itf1Input" placeholder="ITF" name="itf">
+            </div>
+            
+            <div class="field-group">
+                <label>Игрок 2:</label>
+                <input type="text" id="opponentNameInput" placeholder="Имя">
+                <input type="text" id="flag2Input" placeholder="Флаг" name="flag">
+                <input type="text" id="wtn2Input" placeholder="WTN" name="wtn">
+                <input type="text" id="itf2Input" placeholder="ITF" name="itf">
+            </div>
+
+            <div class="match-format-row">
+                <label for="matchFormatSelect">Формат:</label>
+                <select id="matchFormatSelect">
+                    <option value="3set">3 сета (до 2 побед)</option>
+                    <option value="tiebreak">Тай-брейк вместо 3-го сета</option>
+                </select>
+            </div>
+
+            <div class="match-date-row">
+                <div class="field-item">
+                    <label for="matchNameInput">Матч:</label>
+                    <input type="text" id="matchNameInput" placeholder="Название матча">
+                </div>
+                <div class="field-item">
+                    <label for="matchDateInput">Дата:</label>
+                    <input type="date" id="matchDateInput">
+                </div>
+            </div>
+
+            <!-- НОВОЕ ПОЛЕ: ТУРНИР -->
+            <div class="match-tournament-row">
+                <div class="field-item">
+                    <label for="tournamentInput">Турнир:</label>
+                    <input type="text" id="tournamentInput" placeholder="Название турнира">
+                </div>
+            </div>
+            
+            <div class="match-controls">
+                <button class="btn btn-start" id="startMatchBtn" disabled>▶ Начать матч</button>
+                <button class="btn btn-finish" id="finishMatchBtn" disabled>⏹ Закончить матч</button>
+                <div class="retire-controls">
+                    <button class="btn btn-retire" id="retireP1Btn" disabled>🚫 Игрок 1 снялся</button>
+                    <button class="btn btn-retire" id="retireP2Btn" disabled>🚫 Игрок 2 снялся</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="timer-display" style="margin: 4px 0 8px 0;">
+            <span class="timer-icon">⏱️</span>
+            <span>Время матча:</span>
+            <span id="timer">00:00</span>
+        </div>
+
+        <div class="serve-status" id="serveStatus">⏳ Ожидание начала</div>
+        
+        <div class="server-setup">
+            <label for="firstServerSelect">Кто подает первым в матче:</label>
+            <select id="firstServerSelect">
+                <option value="">Выберите игрока</option>
+            </select>
+        </div>
+
+        <!-- Список сохранённых игр скрыт -->
+
+        <div class="actions-buttons-container">
+            <button class="btn btn-export" id="exportGameBtn">📤 Выгрузить</button>
+            <button class="btn btn-import" id="importGameBtn">📥 Загрузить</button>
+            <button class="btn btn-save-stats" id="saveStatsBtn">📸 Сохранить статистику</button>
+            <input type="file" id="fileInput" class="file-input-hidden" accept=".json">
+        </div>
+    </div>
+
+    <div class="sets-container" id="setsContainer">
+        <span>Сеты</span>
+        <div class="set-block active" id="set1Block">
+            <span class="set-label">1</span>
+            <span class="set-score" id="set1Score">0:0</span>
+            <span class="set-status active-set" id="set1Status">▶</span>
+            <span class="set-tiebreak-result" id="set1Tiebreak"></span>
+        </div>
+        <div class="set-block" id="set2Block">
+            <span class="set-label">2</span>
+            <span class="set-score" id="set2Score">0:0</span>
+            <span class="set-status waiting" id="set2Status">⏳</span>
+            <span class="set-tiebreak-result" id="set2Tiebreak"></span>
+        </div>
+        <div class="set-block" id="set3Block">
+            <span class="set-label">3</span>
+            <span class="set-score" id="set3Score">0:0</span>
+            <span class="set-status waiting" id="set3Status">⏳</span>
+            <span class="set-tiebreak-result" id="set3Tiebreak"></span>
+        </div>
+        <span id="tiebreakInfo" style="font-size:0.6rem;color:#8a6a1a;font-weight:600;display:none;">⚡ Тай-брейк!</span>
+    </div>
+
+    <div id="matchStatus" class="match-status">⏳ Ожидание начала матча...</div>
+
+    <div class="live-panel" id="livePanel">
+        <div class="live-header">
+            <h2><span id="gameTypeLabel">Гейм</span></h2>
+            <span class="game-number" id="currentGameNumber">#0</span>
+        </div>
+        
+        <div class="players-info">
+            <span class="we" id="labelWe">
+                <span class="server-ball" id="ballWe" style="display:none;"></span> 👤 <span id="playerNameDisplay"></span>
+            </span>
+            <span style="color:#7599ae;">VS</span>
+            <span class="them" id="labelThem">
+                👤 <span id="opponentNameText"></span> <span class="server-ball" id="ballThem" style="display:none;"></span>
+            </span>
+        </div>
+
+        <div class="score-display" id="scoreDisplay">
+            <div class="score-item we-score-item">
+                <span class="player-label" id="labelWeScore"></span>
+                <span class="score-value we-score" id="player1Score">0</span>
+            </div>
+            <span class="score-divider">:</span>
+            <div class="score-item them-score-item">
+                <span class="player-label" id="scoreLabelThem"></span>
+                <span class="score-value them-score" id="player2Score">0</span>
+            </div>
+        </div>
+
+        <div class="points-history">
+            <div class="label" id="pointsLabel">📝 Розыгрыши:</div>
+            <div class="points-row">
+                <div class="points-side we-side" id="wePointsList">
+                    <span style="color:#7599ae;font-size:0.55rem;">Нет</span>
+                </div>
+                <span class="points-divider">|</span>
+                <div class="points-side them-side" id="themPointsList">
+                    <span style="color:#7599ae;font-size:0.55rem;">Нет</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="score-buttons">
+            <button class="btn btn-we" id="addPointWeBtn" disabled>➕ Очко</button>
+            <button class="btn btn-them" id="addPointThemBtn" disabled>➕ Очко</button>
+        </div>
+
+        <div class="tech-buttons">
+            <button class="btn btn-serve" id="firstServeBtn" disabled>✅ 1-я подача</button>
+            <button class="btn btn-serve" id="secondServeBtn" disabled>✅ 2-я подача</button>
+            <button class="btn btn-serve-fault" id="faultBtn" disabled>❌ Ошибка подачи</button>
+            <button class="btn btn-success" id="btnAce" disabled>⚡ Ace</button>
+            <button class="btn btn-success" id="btnWinner" style="background: #2a7a74; border-color: #2a7a74;" disabled>🔥 Winner</button>
+            <button class="btn btn-danger" id="btnDf" disabled>❌ DF</button>
+            <button class="btn btn-warning" id="btnUeThem" disabled>📉 Невынужденная ОН</button>
+            <button class="btn btn-warning" id="btnUeWe" disabled>📉 Невынужденная МЫ</button>
+            <button class="btn btn-warning" id="undoPointBtn" style="background:#cfe0eb; color:#1f4b61;" disabled>↩ Отмена</button>
+        </div>
+
+        <div class="actions-row">
+            <button class="btn btn-outline" id="clearPointsBtn" disabled>✖ Очистить гейм</button>
+            <button class="btn btn-warning" id="clearCurrentGameBtn" disabled>🔄 Сбросить всё</button>
+        </div>
+    </div>
+
+    <div class="stats-grid" id="statsGrid">
+        <div class="stat-card highlight-blue">
+            <div class="number" id="totalGames">0</div>
+            <div class="label">Геймов</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" id="player1Games">0</div>
+            <div class="label" id="player1GamesLabel"></div>
+        </div>
+        <div class="stat-card">
+            <div class="number" id="player2Games">0</div>
+            <div class="label" id="player2GamesLabel"></div>
+        </div>
+        <div class="stat-card highlight-time">
+            <div class="number" id="match-duration-stat">0:00</div>
+            <div class="label">Время матча</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" id="avgPoints">0.0</div>
+            <div class="label">Сред. очк.</div>
+        </div>
+        <div class="stat-card highlight-green">
+            <div class="number" id="shortGames">0</div>
+            <div class="label">Короткие<br><small>≤4 очка</small></div>
+        </div>
+        <div class="stat-card highlight-yellow">
+            <div class="number" id="mediumGames">0</div>
+            <div class="label">Средние<br><small>5-6 очков</small></div>
+        </div>
+        <div class="stat-card highlight-red">
+            <div class="number" id="longGames">0</div>
+            <div class="label">Длинные<br><small>7-9 очков</small></div>
+        </div>
+        <div class="stat-card highlight-blue" style="border-color:#1d5f7a; background:#d6e8f2;">
+            <div class="number" id="epicGames">0</div>
+            <div class="label">Эпичные<br><small>≥10 очков</small></div>
+        </div>
+        <div class="stat-card highlight-gold">
+            <div class="number" id="statAce">0</div>
+            <div class="label">Эйсы (Ace)</div>
+        </div>
+        <div class="stat-card highlight-gold" style="background:#eafaf1; border-color:#2a7a74; color:#2a7a74;">
+            <div class="number" id="statWinner">0</div>
+            <div class="label">Winners 🔥</div>
+        </div>
+        <div class="stat-card highlight-red">
+            <div class="number" id="statDf">0</div>
+            <div class="label">Дв. ошибки</div>
+        </div>
+        <div class="stat-card highlight-yellow">
+            <div class="number" id="statUe">0</div>
+            <div class="label">Невынужденные ошибки</div>
+        </div>
+        <div class="stat-card highlight-gold" style="border-color: #d4a830; background: #fff8e0;">
+            <div class="number" id="tiebreakGames">0</div>
+            <div class="label">Тай-брейки</div>
+        </div>
+        <div class="stat-card highlight-red">
+            <div class="number" id="statFault1">0</div>
+            <div class="label">Ошибки<br><small>1-я подача</small></div>
+        </div>
+        <div class="stat-card highlight-green" style="border-color:#1d7a4a; background:#d4edda;">
+            <div class="number" id="statServe1">0</div>
+            <div class="label">1-я подача<br><small>успешные</small></div>
+        </div>
+        <div class="stat-card highlight-green" style="border-color:#1d7a4a; background:#d4edda;">
+            <div class="number" id="statServe2">0</div>
+            <div class="label">2-я подача<br><small>успешные</small></div>
+        </div>
+        <div class="stat-card highlight-break-saved">
+            <div class="number" id="statBreakPointsSaved">0</div>
+            <div class="label">Брейк-поинты<br><small>отыграл Игрок 1</small></div>
+        </div>
+        <div class="stat-card highlight-break">
+            <div class="number" id="statBreaks">0</div>
+            <div class="label">Брейканул(а)<br><small>Игрок 1</small></div>
+        </div>
+        <div class="stat-card highlight-break-saved" style="border-color:#2e8b57; background:#e8f5ec;">
+            <div class="number" id="statBreakPointsSavedP2">0</div>
+            <div class="label">Брейк-поинты<br><small>отыграл Игрок 2</small></div>
+        </div>
+        <div class="stat-card highlight-break" style="border-color:#8a2be2; background:#f0ecf8;">
+            <div class="number" id="statBreaksP2">0</div>
+            <div class="label">Брейканул(а)<br><small>Игрок 2</small></div>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>#</th><th>Сет</th><th>Поб.</th><th>Счёт</th><th>Розыгрыши</th><th>Анализ</th><th></th></tr></thead>
+            <tbody id="tableBody"><tr><td colspan="7" class="row-empty">Нет данных</td></tr></tbody>
+        </table>
+    </div>
+
+    <div class="match-history-container">
+        <h3>📋 История матчей</h3>
+        <div id="matchHistoryList" class="match-history-list">
+            <div class="history-empty">Нет завершенных матчей</div>
+        </div>
+        <button class="btn btn-danger clear-history-btn" id="clearHistoryBtn" style="font-size:0.6rem; padding:2px 10px; margin-top:6px;">🗑 Очистить историю</button>
+    </div>
+
+    <div class="footer-tip">
+        <div class="legend">
+            <span><span class="dot green"></span> Лёгкий</span>
+            <span><span class="dot yellow"></span> Средний</span>
+            <span><span class="dot red"></span> Тяжёлый</span>
+            <span><span class="dot blue"></span> Эпичный</span>
+            <span><span class="dot gold"></span> Тай-брейк</span>
+            <span><span class="dot retired"></span> Снятие (Ret)</span>
+            <span><span class="dot break"></span> Брейк</span>
+            <span><span class="dot break-saved"></span> Брейк-поинт отыгран</span>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================
+// 🔥 КОНФИГУРАЦИЯ FIREBASE ЗАГРУЖАЕТСЯ ИЗ config.js
+// ============================================
+
+// ✅ БЕЗОПАСНО: Все настройки Firebase теперь в config.js
+// Этот файл НЕ СОДЕРЖИТ секретов!
+
+let firebaseInitialized = false;
+try {
+    // Используем конфиг из внешнего файла
+    // (переменная FIREBASE_CONFIG определена в config.js)
+    if (typeof FIREBASE_CONFIG !== 'undefined') {
+        firebase.initializeApp(FIREBASE_CONFIG);
+        firebaseInitialized = true;
+        console.log('✅ Firebase подключён через внешний конфиг');
+    } else {
+        console.warn('⚠️ FIREBASE_CONFIG не найден. Проверьте config.js');
+        alert('⚠️ Ошибка: файл config.js не загружен. Проверьте наличие файла.');
+    }
+} catch (e) {
+    console.warn('⚠️ Ошибка Firebase:', e.message);
+    alert('⚠️ Ошибка подключения к Firebase. Проверьте config.js.');
+}
+
+const database = firebaseInitialized ? firebase.database() : null;
+
+// ============================================
+// БЕЗОПАСНОЕ ХРАНЕНИЕ ПАРОЛЕЙ (SHA-256)
+// ============================================
+
+async function hashPassword(password) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ============================================
+// ПОЛЬЗОВАТЕЛИ (ХЕШИ ПАРОЛЕЙ)
+// ============================================
+const USERS = {
+    'zaya': 'f5d66e66a628ff365bb9fc7f9e718ccc07dbd2fc2a72f688266134c4f6c17ff7',
+    'maya': '79f90600713321335f67495193385e34336c3a4eb73757cb4d107f6d3175e9fc',
+};
+
+// ============================================
+// СИСТЕМА ВХОДА
+// ============================================
+
+const loginOverlay = document.getElementById('loginOverlay');
+const loginUsername = document.getElementById('loginUsername');
+const loginPassword = document.getElementById('loginPassword');
+const loginBtn = document.getElementById('loginBtn');
+const loginError = document.getElementById('loginError');
+
+function checkSession() {
+    const isLoggedIn = sessionStorage.getItem('tennisLoggedIn');
+    if (isLoggedIn === 'true') {
+        loginOverlay.classList.add('hidden');
+        document.getElementById('mainContent').style.display = 'block';
+        if (typeof init === 'function') {
+            init();
+        }
+    }
+}
+
+async function handleLogin() {
+    const username = loginUsername.value.trim();
+    const password = loginPassword.value.trim();
+
+    if (!username || !password) {
+        loginError.textContent = '⚠️ Введите логин и пароль';
+        loginUsername.classList.toggle('error', !username);
+        loginPassword.classList.toggle('error', !password);
+        return;
+    }
+
+    if (USERS.hasOwnProperty(username)) {
+        const hashedInput = await hashPassword(password);
+        if (USERS[username] === hashedInput) {
+            loginError.textContent = '';
+            loginUsername.classList.remove('error');
+            loginPassword.classList.remove('error');
+            sessionStorage.setItem('tennisLoggedIn', 'true');
+            loginOverlay.classList.add('hidden');
+            document.getElementById('mainContent').style.display = 'block';
+            if (typeof init === 'function') {
+                init();
+            }
+        } else {
+            loginError.textContent = '❌ Неверный пароль';
+            loginUsername.classList.add('error');
+            loginPassword.classList.add('error');
+            loginPassword.value = '';
+            loginPassword.focus();
+        }
+    } else {
+        loginError.textContent = '❌ Пользователь не найден';
+        loginUsername.classList.add('error');
+        loginPassword.classList.add('error');
+        loginPassword.value = '';
+        loginPassword.focus();
+    }
+}
+
+loginBtn.addEventListener('click', handleLogin);
+loginUsername.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') loginPassword.focus();
+    this.classList.remove('error');
+    loginError.textContent = '';
+});
+loginPassword.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') handleLogin();
+    this.classList.remove('error');
+    loginError.textContent = '';
+});
+
+checkSession();
+
+// ============================================
+// ФУНКЦИИ ДЛЯ РАБОТЫ С КОДОМ МАТЧА
+// ============================================
+
+function copyMatchCode() {
+    const code = document.getElementById('shareCode').textContent;
+    if (code && code !== 'XXXXXX') {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(code).then(() => {
+                alert('✅ Код матча скопирован: ' + code);
+            });
+        } else {
+            const textarea = document.createElement('textarea');
+            textarea.value = code;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            alert('✅ Код матча скопирован: ' + code);
+        }
+    } else {
+        alert('⚠️ Код матча ещё не сгенерирован. Сначала создайте матч.');
+    }
+}
+
+function shareWhatsApp() {
+    const code = document.getElementById('shareCode').textContent;
+    window.open('https://wa.me/?text=' + encodeURIComponent('🎾 Код матча для просмотра статистики: ' + code), '_blank');
+}
+
+function shareTelegram() {
+    const code = document.getElementById('shareCode').textContent;
+    window.open('https://t.me/share/url?url=&text=' + encodeURIComponent('🎾 Код матча для просмотра статистики: ' + code), '_blank');
+}
+
+// ============================================
+// ПОДКЛЮЧЕНИЕ К МАТЧУ ПО КОДУ (для секретаря, чтобы видеть свой матч)
+// ============================================
+
+let matchRef = null;
+let matchId = null;
+let isFirebaseListenerActive = false;
+
+// ============================================
+// ГЛАВНАЯ ФУНКЦИЯ СИНХРОНИЗАЦИИ С FIREBASE (ИСПРАВЛЕНА)
+// ============================================
+
+function syncStatsToFirebase() {
+    if (!matchRef || !matchId) {
+        console.log('⏳ Нет активного матча для синхронизации');
+        return;
+    }
+    
+    // Получаем WTN, ITF и флаги из полей ввода
+    const flag1 = document.getElementById('flag1Input').value.trim();
+    const flag2 = document.getElementById('flag2Input').value.trim();
+    const wtn1 = document.getElementById('wtn1Input').value.trim();
+    const wtn2 = document.getElementById('wtn2Input').value.trim();
+    const itf1 = document.getElementById('itf1Input').value.trim();
+    const itf2 = document.getElementById('itf2Input').value.trim();
+    
+    // Получаем турнир
+    const tournament = document.getElementById('tournamentInput').value.trim() || 'GSPD';
+    
+    const myName = getMyName();
+    const opponentName = getOpponentName();
+    const matchName = matchNameInput.value.trim() || 'Матч';
+    
+    // Подсчёт геймов для каждого игрока
+    const p1Games = records.filter(r => r.winner === 1).length;
+    const p2Games = records.filter(r => r.winner === 2).length;
+    
+    // Подсчёт общих очков
+    const p1Points = records.reduce((sum, r) => sum + (r.winner === 1 ? r.points.length : 0), 0);
+    const p2Points = records.reduce((sum, r) => sum + (r.winner === 2 ? r.points.length : 0), 0);
+    
+    // Определяем победителя
+    let winner = null;
+    if (isMatchFinished) {
+        const sets1 = (setWins[1]?.p1 || 0) + (setWins[2]?.p1 || 0) + (setWins[3]?.p1 || 0);
+        const sets2 = (setWins[1]?.p2 || 0) + (setWins[2]?.p2 || 0) + (setWins[3]?.p2 || 0);
+        winner = sets1 > sets2 ? 1 : (sets2 > sets1 ? 2 : null);
+    }
+    
+    const updateData = {
+        player1: myName || 'Игрок 1',
+        player2: opponentName || 'Игрок 2',
+        matchName: matchName,
+        tournament: tournament,
+        flag1: flag1,
+        flag2: flag2,
+        wtn1: wtn1,
+        wtn2: wtn2,
+        itf1: itf1,
+        itf2: itf2,
+        status: isMatchActive ? 'active' : (isMatchFinished ? 'finished' : 'waiting'),
+        stats: {
+            p1: {
+                games: p1Games,
+                points: p1Points,
+                ace: aceCount,
+                winner: winnerCount,
+                df: dfCount,
+                ue: ueCount,
+                breaks: breaks,
+                breakPointsSaved: breakPointsSaved,
+                serve1: countServe1,
+                serve2: countServe2,
+                fault1: countFault1
+            },
+            p2: {
+                games: p2Games,
+                points: p2Points,
+                ace: 0,
+                winner: 0,
+                df: 0,
+                ue: 0,
+                breaks: breaksP2,
+                breakPointsSaved: breakPointsSavedP2,
+                serve1: 0,
+                serve2: 0,
+                fault1: 0
+            }
+        },
+        sets: setWins,
+        currentGame: {
+            p1: currentFirst,
+            p2: currentSecond,
+            isTiebreak: isTiebreak,
+            serve: isServingPlayer
+        },
+        currentSet: currentSet,
+        gameNumber: currentGameNumber,
+        isMatchFinished: isMatchFinished,
+        isRetired: isRetired,
+        gamePoints: currentPoints,
+        pointMetadata: pointMetadata,
+        history: records,
+        duration: timerElement ? timerElement.textContent : '00:00',
+        startTime: matchStartTime ? matchStartTime.toISOString() : null,
+        winner: winner
+    };
+    
+    console.log('📤 Отправка данных в Firebase:', updateData);
+    
+    matchRef.update(updateData)
+        .then(() => {
+            console.log('✅ Данные синхронизированы с Firebase');
+        })
+        .catch(err => {
+            console.warn('⚠️ Ошибка синхронизации:', err);
+        });
+}
+
+function startFirebaseListener() {
+    if (isFirebaseListenerActive || !matchRef) return;
+    isFirebaseListenerActive = true;
+    
+    matchRef.on('value', snapshot => {
+        const data = snapshot.val();
+        if (!data) return;
+        
+        // Обновляем статистику
+        if (data.stats) {
+            if (data.stats.p1) {
+                countServe1 = data.stats.p1.serve1 || 0;
+                countServe2 = data.stats.p1.serve2 || 0;
+                countFault1 = data.stats.p1.fault1 || 0;
+                aceCount = data.stats.p1.ace || 0;
+                winnerCount = data.stats.p1.winner || 0;
+                dfCount = data.stats.p1.df || 0;
+                ueCount = data.stats.p1.ue || 0;
+                breakPointsSaved = data.stats.p1.breakPointsSaved || 0;
+                breaks = data.stats.p1.breaks || 0;
+            }
+            if (data.stats.p2) {
+                breakPointsSavedP2 = data.stats.p2.breakPointsSaved || 0;
+                breaksP2 = data.stats.p2.breaks || 0;
+            }
+            updateFaultStatsDisplay();
+        }
+        
+        // Обновляем сеты
+        if (data.sets) {
+            for (let i = 1; i <= 3; i++) {
+                if (data.sets[i]) {
+                    setWins[i] = {p1: data.sets[i].p1 || 0, p2: data.sets[i].p2 || 0};
+                }
+            }
+            updateSetsDisplay();
+        }
+        
+        // Обновляем текущий гейм
+        if (data.currentGame) {
+            currentFirst = data.currentGame.p1 || 0;
+            currentSecond = data.currentGame.p2 || 0;
+            isTiebreak = data.currentGame.isTiebreak || false;
+            isServingPlayer = data.currentGame.serve || 1;
+            updateCurrentGameDisplay();
+        }
+        
+        // Обновляем историю
+        if (data.history && Array.isArray(data.history)) {
+            records = data.history.map(h => ({
+                set: h.set || 1,
+                winner: h.winner || 1,
+                first: h.first || 0,
+                second: h.second || 0,
+                points: h.points || [],
+                metadata: h.metadata || [],
+                isTiebreak: h.isTiebreak || false,
+                isBreak: h.isBreak || false,
+                breakPointSaved: h.breakPointSaved || false
+            }));
+            renderTable();
+            updateStats();
+        }
+        
+        // Обновляем текущие очки гейма
+        if (data.gamePoints && Array.isArray(data.gamePoints)) {
+            currentPoints = data.gamePoints;
+        }
+        if (data.pointMetadata && Array.isArray(data.pointMetadata)) {
+            pointMetadata = data.pointMetadata;
+        }
+        if (data.gameNumber) {
+            currentGameNumber = data.gameNumber;
+        }
+        if (data.currentSet) {
+            currentSet = data.currentSet;
+        }
+        
+        isMatchFinished = data.isMatchFinished || false;
+        isRetired = data.isRetired || false;
+        
+        if (isMatchFinished) {
+            matchStatus.textContent = '🏁 Матч завершён';
+            matchStatus.className = 'match-status finished';
+            matchStatus.style.display = 'block';
+            livePanel.classList.add('match-finished');
+            serveStatus.textContent = '🏁 Матч завершён';
+            disableAllButtons();
+        }
+        
+        updateCurrentGameDisplay();
+        updateServerIndicator();
+        validateMatchFields();
+        updateAll();
+    });
+}
+
+function saveGameToLocal(code, data) {
+    try {
+        const id = 'firebase_' + code;
+        savedGames[id] = {
+            name: data.matchName || 'Матч ' + code,
+            myName: data.player1 || '',
+            opponent: data.player2 || '',
+            matchName: data.matchName || '',
+            matchDate: data.matchDate || new Date().toISOString().split('T')[0],
+            matchFormat: data.format || '3set',
+            tournament: data.tournament || 'GSPD',
+            flag1: data.flag1 || '',
+            flag2: data.flag2 || '',
+            date: new Date().toLocaleString(),
+            initialServer: 1,
+            records: JSON.stringify(data.history || []),
+            isMatchFinished: data.isMatchFinished || false,
+            isRetired: data.isRetired || false,
+            countFault1: data.stats?.p1?.fault1 || 0,
+            countFault2: 0,
+            countServe1: data.stats?.p1?.serve1 || 0,
+            countServe2: data.stats?.p1?.serve2 || 0,
+            aceCount: data.stats?.p1?.ace || 0,
+            winnerCount: data.stats?.p1?.winner || 0,
+            dfCount: data.stats?.p1?.df || 0,
+            ueCount: data.stats?.p1?.ue || 0,
+            breakPointsSaved: data.stats?.p1?.breakPointsSaved || 0,
+            breaks: data.stats?.p1?.breaks || 0,
+            breakPointsSavedP2: data.stats?.p2?.breakPointsSaved || 0,
+            breaksP2: data.stats?.p2?.breaks || 0,
+            details: { wtn1: '', itf1: '', wtn2: '', itf2: '' },
+            matchStartTime: null,
+            matchEndTime: null,
+            matchDuration: 0
+        };
+        localStorage.setItem('tennisSavedGames', JSON.stringify(savedGames));
+    } catch (e) {
+        console.warn('Не удалось сохранить локально:', e);
+    }
+}
+
+function disableAllButtons() {
+    addPointWeBtn.disabled = true;
+    addPointThemBtn.disabled = true;
+    faultBtn.disabled = true;
+    firstServeBtn.disabled = true;
+    secondServeBtn.disabled = true;
+    document.getElementById('btnAce').disabled = true;
+    document.getElementById('btnWinner').disabled = true;
+    document.getElementById('btnDf').disabled = true;
+    document.getElementById('btnUeThem').disabled = true;
+    document.getElementById('btnUeWe').disabled = true;
+    document.getElementById('undoPointBtn').disabled = true;
+    document.getElementById('clearPointsBtn').disabled = true;
+    document.getElementById('clearCurrentGameBtn').disabled = true;
+    finishMatchBtn.disabled = true;
+    retireP1Btn.disabled = true;
+    retireP2Btn.disabled = true;
+}
+
+function enableAllButtons() {
+    addPointWeBtn.disabled = false;
+    addPointThemBtn.disabled = false;
+    faultBtn.disabled = false;
+    firstServeBtn.disabled = false;
+    secondServeBtn.disabled = false;
+    document.getElementById('btnAce').disabled = false;
+    document.getElementById('btnWinner').disabled = false;
+    document.getElementById('btnDf').disabled = false;
+    document.getElementById('btnUeThem').disabled = false;
+    document.getElementById('btnUeWe').disabled = false;
+    document.getElementById('undoPointBtn').disabled = false;
+    document.getElementById('clearPointsBtn').disabled = false;
+    document.getElementById('clearCurrentGameBtn').disabled = false;
+    finishMatchBtn.disabled = false;
+    retireP1Btn.disabled = false;
+    retireP2Btn.disabled = false;
+}
+
+// ============================================
+// ВСЯ ОСТАЛЬНАЯ ЛОГИКА ПРОГРАММЫ
+// ============================================
+
+function toggleInstruction() {
+    const content = document.getElementById('instructionContent');
+    const icon = document.getElementById('toggleIcon');
+    content.classList.toggle('open');
+    icon.classList.toggle('collapsed');
+}
+
+let matchHistory = [];
+let startTime = null;
+let timerInterval = null;
+let timerElement = document.getElementById('timer');
+let matchDurationStat = document.getElementById('match-duration-stat');
+let serveAttempt = 1;
+let isServingPlayer = 1;
+let countFault1 = 0;
+let countFault2 = 0;
+let countServe1 = 0;
+let countServe2 = 0;
+let totalPoints = 0;
+let aceCount = 0;
+let winnerCount = 0;
+let dfCount = 0;
+let ueCount = 0;
+let isMatchActive = false;
+let isRetired = false;
+
+let breakPointsSaved = 0;
+let breaks = 0;
+let breakPointsSavedP2 = 0;
+let breaksP2 = 0;
+
+let matchFormat = '3set';
+
+const firstServeBtn = document.getElementById('firstServeBtn');
+const secondServeBtn = document.getElementById('secondServeBtn');
+const faultBtn = document.getElementById('faultBtn');
+
+function resetStatistics() {
+    countFault1 = 0;
+    countFault2 = 0;
+    countServe1 = 0;
+    countServe2 = 0;
+    totalPoints = 0;
+    aceCount = 0;
+    winnerCount = 0;
+    dfCount = 0;
+    ueCount = 0;
+    breakPointsSaved = 0;
+    breaks = 0;
+    breakPointsSavedP2 = 0;
+    breaksP2 = 0;
+    records = [];
+    currentGameNumber = 1;
+    currentPoints = [];
+    pointMetadata = [];
+    currentFirst = 0;
+    currentSecond = 0;
+    currentSet = 1;
+    setWins = {1: {p1: 0, p2: 0}, 2: {p1: 0, p2: 0}, 3: {p1: 0, p2: 0}};
+    setCompleted = {1: false, 2: false, 3: false};
+    setWinner = {1: null, 2: null, 3: null};
+    setTiebreakScore = {1: null, 2: null, 3: null};
+    isTiebreak = false;
+    tiebreakStarted = {1: false, 2: false, 3: false};
+    isMatchFinished = false;
+    matchStarted = false;
+    isRetired = false;
+    isMatchActive = false;
+    serveAttempt = 1;
+    isServingPlayer = 1;
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    startTime = null;
+    if (timerElement) timerElement.textContent = '00:00';
+    if (matchDurationStat) matchDurationStat.textContent = '0:00';
+    document.getElementById('shortGames').textContent = '0';
+    document.getElementById('mediumGames').textContent = '0';
+    document.getElementById('longGames').textContent = '0';
+    document.getElementById('epicGames').textContent = '0';
+    document.getElementById('tiebreakGames').textContent = '0';
+    document.getElementById('statAce').textContent = '0';
+    document.getElementById('statWinner').textContent = '0';
+    document.getElementById('statDf').textContent = '0';
+    document.getElementById('statUe').textContent = '0';
+    document.getElementById('totalGames').textContent = '0';
+    document.getElementById('player1Games').textContent = '0';
+    document.getElementById('player2Games').textContent = '0';
+    document.getElementById('avgPoints').textContent = '0.0';
+    document.getElementById('statBreakPointsSaved').textContent = '0';
+    document.getElementById('statBreaks').textContent = '0';
+    document.getElementById('statBreakPointsSavedP2').textContent = '0';
+    document.getElementById('statBreaksP2').textContent = '0';
+    updateFaultStatsDisplay();
+    updateAll();
+}
+
+function getPlayerDetails() {
+    return {
+        flag1: document.getElementById('flag1Input').value,
+        flag2: document.getElementById('flag2Input').value,
+        wtn1: document.getElementById('wtn1Input').value,
+        itf1: document.getElementById('itf1Input').value,
+        wtn2: document.getElementById('wtn2Input').value,
+        itf2: document.getElementById('itf2Input').value
+    };
+}
+
+function setPlayerDetails(details) {
+    if (details) {
+        document.getElementById('flag1Input').value = details.flag1 || '';
+        document.getElementById('flag2Input').value = details.flag2 || '';
+        document.getElementById('wtn1Input').value = details.wtn1 || '';
+        document.getElementById('itf1Input').value = details.itf1 || '';
+        document.getElementById('wtn2Input').value = details.wtn2 || '';
+        document.getElementById('itf2Input').value = details.itf2 || '';
+    }
+}
+
+function updateTimerDisplay() {
+    if (!startTime || !isMatchActive) return;
+    const now = new Date();
+    const diff = Math.floor((now - startTime) / 1000);
+    const minutes = Math.floor(diff / 60);
+    const seconds = diff % 60;
+    const timeString = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    if (timerElement) timerElement.textContent = timeString;
+    if (matchDurationStat) matchDurationStat.textContent = timeString;
+}
+
+function loadMatchHistory() {
+    try {
+        const saved = localStorage.getItem('tennisMatchHistory');
+        if (saved) {
+            matchHistory = JSON.parse(saved);
+        }
+    } catch (e) {
+        matchHistory = [];
+    }
+    renderHistory();
+}
+
+function saveMatchHistory() {
+    try {
+        localStorage.setItem('tennisMatchHistory', JSON.stringify(matchHistory));
+    } catch (e) {
+        console.error('Ошибка сохранения истории:', e);
+    }
+}
+
+function renderHistory() {
+    const listElement = document.getElementById('matchHistoryList');
+    if (!listElement) return;
+    if (matchHistory.length === 0) {
+        listElement.innerHTML = '<div class="history-empty">Нет завершенных матчей</div>';
+        return;
+    }
+    listElement.innerHTML = matchHistory.map((match, index) => {
+        const date = match.date || new Date().toLocaleString();
+        const duration = match.duration || '0:00';
+        const winner = match.winner || 'Неизвестно';
+        const isRetiredMatch = match.isRetired || false;
+        let winnerClass = 'win-draw';
+        let winnerDisplay = `🤝 ${winner}`;
+        if (isRetiredMatch) {
+            winnerClass = 'win-retired';
+            const note = match.note || '';
+            winnerDisplay = `🚫 ${winner} ${note}`;
+        } else if (match.winnerType === 1) {
+            winnerClass = 'win-p1';
+            winnerDisplay = `🏆 ${winner}`;
+        } else if (match.winnerType === 2) {
+            winnerClass = 'win-p2';
+            winnerDisplay = `🏆 ${winner}`;
+        }
+        return `<div class="match-history-item">
+            <span class="match-result">${index + 1}. ${match.result}</span>
+            <span class="match-winner ${winnerClass}">${winnerDisplay}</span>
+            <span class="match-date">${duration} • ${date}</span>
+            <span class="match-delete" data-index="${index}">✕</span>
+        </div>`;
+    }).join('');
+    document.querySelectorAll('.match-delete').forEach(el => {
+        el.addEventListener('click', function() {
+            const index = parseInt(this.getAttribute('data-index'), 10);
+            if (confirm('Удалить эту запись из истории?')) {
+                matchHistory.splice(index, 1);
+                saveMatchHistory();
+                renderHistory();
+            }
+        });
+    });
+}
+
+function addMatchToHistory(matchResult, duration, winner, winnerType, isRetired, note) {
+    const now = new Date();
+    const dateStr = now.toLocaleString();
+    matchHistory.push({
+        result: matchResult,
+        date: dateStr,
+        duration: duration || '0:00',
+        winner: winner || 'Неизвестно',
+        winnerType: winnerType || 0,
+        isRetired: isRetired || false,
+        note: note || '',
+        timestamp: now.getTime()
+    });
+    saveMatchHistory();
+    renderHistory();
+}
+
+let savedGames = {};
+let currentGameId = null;
+let records = [];
+let currentGameNumber = 1;
+let currentPoints = [];
+let pointMetadata = [];
+let currentFirst = 0;
+let currentSecond = 0;
+let currentSet = 1;
+let setWins = {1: {p1: 0, p2: 0}, 2: {p1: 0, p2: 0}, 3: {p1: 0, p2: 0}};
+let setCompleted = {1: false, 2: false, 3: false};
+let setWinner = {1: null, 2: null, 3: null};
+let setTiebreakScore = {1: null, 2: null, 3: null};
+let isTiebreak = false;
+let tiebreakStarted = {1: false, 2: false, 3: false};
+let initialServer = 1;
+let matchStarted = false;
+let isMatchFinished = false;
+let matchStartTime = null;
+let matchEndTime = null;
+let matchTimerInterval = null;
+
+let isBreakPoint = false;
+let breakPointSituation = false;
+
+const tennisMap = { 0: '0', 1: '15', 2: '30', 3: '40', 4: 'AD' };
+const revTennisMap = { '0': 0, '15': 1, '30': 2, '40': 3, 'AD': 4 };
+
+const player1ScoreEl = document.getElementById('player1Score');
+const player2ScoreEl = document.getElementById('player2Score');
+const currentGameNumberEl = document.getElementById('currentGameNumber');
+const wePointsList = document.getElementById('wePointsList');
+const themPointsList = document.getElementById('themPointsList');
+const gamesListEl = document.getElementById('gamesList');
+const myNameInput = document.getElementById('myNameInput');
+const opponentNameInput = document.getElementById('opponentNameInput');
+const matchNameInput = document.getElementById('matchNameInput');
+const matchDateInput = document.getElementById('matchDateInput');
+const tournamentInput = document.getElementById('tournamentInput');
+const flag1Input = document.getElementById('flag1Input');
+const flag2Input = document.getElementById('flag2Input');
+const opponentNameText = document.getElementById('opponentNameText');
+const playerNameDisplay = document.getElementById('playerNameDisplay');
+const scoreLabelThem = document.getElementById('scoreLabelThem');
+const labelWeScore = document.getElementById('labelWeScore');
+const player1GamesLabel = document.getElementById('player1GamesLabel');
+const player2GamesLabel = document.getElementById('player2GamesLabel');
+const addPointWeBtn = document.getElementById('addPointWeBtn');
+const addPointThemBtn = document.getElementById('addPointThemBtn');
+const serveStatus = document.getElementById('serveStatus');
+const fileInput = document.getElementById('fileInput');
+const tableBody = document.getElementById('tableBody');
+const firstServerSelect = document.getElementById('firstServerSelect');
+const startMatchBtn = document.getElementById('startMatchBtn');
+const finishMatchBtn = document.getElementById('finishMatchBtn');
+const retireP1Btn = document.getElementById('retireP1Btn');
+const retireP2Btn = document.getElementById('retireP2Btn');
+const matchStatus = document.getElementById('matchStatus');
+const livePanel = document.getElementById('livePanel');
+const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+
+const matchFormatSelect = document.getElementById('matchFormatSelect');
+
+const totalGamesEl = document.getElementById('totalGames');
+const player1GamesEl = document.getElementById('player1Games');
+const player2GamesEl = document.getElementById('player2Games');
+const avgPointsEl = document.getElementById('avgPoints');
+const shortGamesEl = document.getElementById('shortGames');
+const mediumGamesEl = document.getElementById('mediumGames');
+const longGamesEl = document.getElementById('longGames');
+const epicGamesEl = document.getElementById('epicGames');
+const tiebreakGamesEl = document.getElementById('tiebreakGames');
+const statAceEl = document.getElementById('statAce');
+const statWinnerEl = document.getElementById('statWinner');
+const statDfEl = document.getElementById('statDf');
+const statUeEl = document.getElementById('statUe');
+
+const set1Score = document.getElementById('set1Score'), set2Score = document.getElementById('set2Score'), set3Score = document.getElementById('set3Score');
+const set1Status = document.getElementById('set1Status'), set2Status = document.getElementById('set2Status'), set3Status = document.getElementById('set3Status');
+const set1Block = document.getElementById('set1Block'), set2Block = document.getElementById('set2Block'), set3Block = document.getElementById('set3Block');
+const set1Tiebreak = document.getElementById('set1Tiebreak'), set2Tiebreak = document.getElementById('set2Tiebreak'), set3Tiebreak = document.getElementById('set3Tiebreak');
+const tiebreakInfo = document.getElementById('tiebreakInfo'), gameTypeLabel = document.getElementById('gameTypeLabel');
+const scoreDisplay = document.getElementById('scoreDisplay'), pointsLabel = document.getElementById('pointsLabel');
+const ballWe = document.getElementById('ballWe'), ballThem = document.getElementById('ballThem');
+const labelWe = document.getElementById('labelWe'), labelThem = document.getElementById('labelThem');
+
+const exportGameBtn = document.getElementById('exportGameBtn');
+const importGameBtn = document.getElementById('importGameBtn');
+const saveStatsBtn = document.getElementById('saveStatsBtn');
+
+function formatDuration(ms) {
+    if (!ms || ms < 0) return '0:00';
+    let totalSeconds = Math.floor(ms / 1000);
+    let minutes = Math.floor(totalSeconds / 60);
+    let seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function getMyName() {
+    return myNameInput.value.trim() || '';
+}
+
+function getOpponentName() {
+    return opponentNameInput.value.trim() || '';
+}
+
+function updateServeStatus() {
+    if (!isMatchActive || isMatchFinished) {
+        serveStatus.textContent = '⏳ Ожидание начала';
+        return;
+    }
+    const serverName = isServingPlayer === 1 ? (getMyName() || 'Игрок 1') : (getOpponentName() || 'Игрок 2');
+    const attemptText = serveAttempt === 1 ? '1-я' : '2-я';
+    serveStatus.textContent = `🎾 ${serverName} (${attemptText} подача)`;
+}
+
+function updateFaultStatsDisplay() {
+    document.getElementById('statFault1').textContent = countFault1;
+    document.getElementById('statServe1').textContent = countServe1;
+    document.getElementById('statServe2').textContent = countServe2;
+    statAceEl.textContent = aceCount;
+    statWinnerEl.textContent = winnerCount;
+    statDfEl.textContent = dfCount;
+    statUeEl.textContent = ueCount;
+    document.getElementById('statBreakPointsSaved').textContent = breakPointsSaved;
+    document.getElementById('statBreaks').textContent = breaks;
+    document.getElementById('statBreakPointsSavedP2').textContent = breakPointsSavedP2;
+    document.getElementById('statBreaksP2').textContent = breaksP2;
+}
+
+function checkBreakPoint() {
+    const p1 = currentFirst;
+    const p2 = currentSecond;
+    
+    if (isServingPlayer === 2) {
+        if ((p1 === 2 && p2 === 3) || (p1 === 3 && p2 === 4) || (p1 === 1 && p2 === 3)) {
+            isBreakPoint = true;
+            breakPointSituation = true;
+            return true;
+        }
+    } else if (isServingPlayer === 1) {
+        if ((p2 === 2 && p1 === 3) || (p2 === 3 && p1 === 4) || (p2 === 1 && p1 === 3)) {
+            isBreakPoint = true;
+            breakPointSituation = true;
+            return true;
+        }
+    }
+    return false;
+}
+
+function registerFirstServe() {
+    if (!isMatchActive || isMatchFinished) {
+        alert('Матч не активен!');
+        return;
+    }
+    if (serveAttempt === 1) {
+        if (isServingPlayer === 1) {
+            countServe1++;
+            updateFaultStatsDisplay();
+        }
+        serveAttempt = 1;
+        updateServeStatus();
+        syncStatsToFirebase();
+    } else {
+        alert('Сейчас должна быть вторая подача! Используйте кнопку "2-я подача" или "Ошибка подачи".');
+    }
+}
+
+function registerSecondServe() {
+    if (!isMatchActive || isMatchFinished) {
+        alert('Матч не активен!');
+        return;
+    }
+    if (serveAttempt === 2) {
+        if (isServingPlayer === 1) {
+            countServe2++;
+            updateFaultStatsDisplay();
+        }
+        serveAttempt = 1;
+        updateServeStatus();
+        syncStatsToFirebase();
+    } else {
+        alert('Сейчас должна быть первая подача! Используйте кнопку "1-я подача" или "Ошибка подачи".');
+    }
+}
+
+function registerFault() {
+    if (!isMatchActive || isMatchFinished) {
+        alert('Матч не активен!');
+        return;
+    }
+    if (serveAttempt === 1) {
+        if (isServingPlayer === 1) {
+            countFault1++;
+            updateFaultStatsDisplay();
+        }
+        serveAttempt = 2;
+        updateServeStatus();
+        syncStatsToFirebase();
+    } else {
+        if (isServingPlayer === 1) {
+            countFault2++;
+            updateFaultStatsDisplay();
+        }
+        const opponentPlayer = isServingPlayer === 1 ? 2 : 1;
+        addPointToPlayer(opponentPlayer, 'df');
+        serveAttempt = 1;
+        updateServeStatus();
+        syncStatsToFirebase();
+    }
+}
+
+function updateServerIndicator() {
+    let currentServer = initialServer;
+    let totalPlayedGames = records.filter(r => r.set === currentSet && !r.isTiebreak).length;
+    if (totalPlayedGames % 2 !== 0) {
+        currentServer = initialServer === 1 ? 2 : 1;
+    }
+    if (isTiebreak) {
+        let totalTiebreakPoints = currentFirst + currentSecond;
+        if (totalTiebreakPoints > 0) {
+            let changeCount = Math.floor((totalTiebreakPoints - 1) / 2) + 1;
+            if (changeCount % 2 !== 0) {
+                currentServer = currentServer === 1 ? 2 : 1;
+            }
+        }
+    }
+    isServingPlayer = currentServer;
+    updateServeStatus();
+    if (currentServer === 1) {
+        ballWe.style.display = 'inline-block';
+        ballThem.style.display = 'none';
+        ballWe.style.animation = 'pulse 0.7s infinite alternate';
+        ballThem.style.animation = 'none';
+        labelWe.classList.add('serving-now');
+        labelThem.classList.remove('serving-now');
+    } else {
+        ballWe.style.display = 'none';
+        ballThem.style.display = 'inline-block';
+        ballThem.style.animation = 'pulse 0.7s infinite alternate';
+        ballWe.style.animation = 'none';
+        labelWe.classList.remove('serving-now');
+        labelThem.classList.add('serving-now');
+    }
+}
+
+function updateCurrentGameDisplay() {
+    player1ScoreEl.textContent = isTiebreak ? currentFirst : (tennisMap[currentFirst] || currentFirst);
+    player2ScoreEl.textContent = isTiebreak ? currentSecond : (tennisMap[currentSecond] || currentSecond);
+    currentGameNumberEl.textContent = '#' + (matchStarted ? currentGameNumber : 0);
+    const myNameRaw = myNameInput.value.trim();
+    const opponentNameRaw = opponentNameInput.value.trim();
+    const myName = myNameRaw || '';
+    const opponentName = opponentNameRaw || '';
+    const myButtonText = myNameRaw ? `Очко ${myName}` : 'Очко';
+    const opponentButtonText = opponentNameRaw ? `Очко ${opponentName}` : 'Очко';
+    addPointWeBtn.innerHTML = `➕ ${myButtonText}`;
+    addPointThemBtn.innerHTML = `➕ ${opponentButtonText}`;
+    playerNameDisplay.textContent = myName;
+    labelWeScore.textContent = myName || 'Игрок 1';
+    player1GamesLabel.textContent = myName || 'Игрок 1';
+    player2GamesLabel.textContent = opponentName || 'Игрок 2';
+    scoreLabelThem.textContent = opponentName || 'Игрок 2';
+    opponentNameText.textContent = opponentName;
+    const ballElement = document.getElementById('ballWe');
+    labelWe.innerHTML = '';
+    labelWe.appendChild(ballElement);
+    labelWe.appendChild(document.createTextNode(' 👤 ' + myName));
+    updatePointsDisplay();
+    updateSetsDisplay();
+    updateServerSelectOptions();
+    updateServerIndicator();
+}
+
+function addPointToPlayer(player, type = 'normal') {
+    if (!matchStarted) { alert('Сначала начните матч!'); return; }
+    if (isMatchFinished) { alert('Матч уже завершён!'); return; }
+    if (setCompleted[currentSet]) { alert(`Сет ${currentSet} уже завершён!`); return; }
+    totalPoints++;
+    if (type === 'df') {
+        if (isServingPlayer === 1) {
+            dfCount++;
+            statDfEl.textContent = dfCount;
+        }
+    }
+    if (type === 'ace') {
+        if (isServingPlayer === 1) {
+            aceCount++;
+            statAceEl.textContent = aceCount;
+        }
+    }
+    if (type === 'winner') {
+        if (player === 1) {
+            winnerCount++;
+            statWinnerEl.textContent = winnerCount;
+        }
+    }
+    if (type === 'ue') {
+        if (player === 2) {
+            ueCount++;
+            statUeEl.textContent = ueCount;
+        }
+    }
+    
+    let wasBreakPoint = checkBreakPoint();
+    
+    if (isTiebreak) {
+        if (player === 1) currentFirst++; else currentSecond++;
+        currentPoints.push(formatScoreDisplay(currentFirst, currentSecond));
+        pointMetadata.push(type === 'normal' ? '' : type);
+        if ((currentFirst + currentSecond) % 6 === 0 && (currentFirst + currentSecond) !== 0) {
+            alert("↔ Смена сторон!");
+        }
+        serveAttempt = 1;
+        updateServeStatus();
+        updateCurrentGameDisplay();
+        syncStatsToFirebase();
+        checkTiebreakComplete();
+        return;
+    }
+    let playerScore = player === 1 ? currentFirst : currentSecond;
+    let opponentScore = player === 1 ? currentSecond : currentFirst;
+    pointMetadata.push(type === 'normal' ? '' : type);
+    serveAttempt = 1;
+    updateServeStatus();
+    
+    if (wasBreakPoint) {
+        if (player === isServingPlayer) {
+            if (isServingPlayer === 1) {
+                breakPointsSaved++;
+                document.getElementById('statBreakPointsSaved').textContent = breakPointsSaved;
+            } else {
+                breakPointsSavedP2++;
+                document.getElementById('statBreakPointsSavedP2').textContent = breakPointsSavedP2;
+            }
+        }
+        isBreakPoint = false;
+    }
+    
+    if (playerScore === 4) { 
+        let wasBreak = false;
+        if (player !== isServingPlayer) {
+            wasBreak = true;
+            if (player === 1) {
+                breaks++;
+                document.getElementById('statBreaks').textContent = breaks;
+            } else {
+                breaksP2++;
+                document.getElementById('statBreaksP2').textContent = breaksP2;
+            }
+        }
+        finishGame(player, wasBreak); 
+        return; 
+    }
+    if (playerScore === 3 && opponentScore === 4) {
+        if (player === 1) currentSecond = 3; else currentFirst = 3;
+    } else if (playerScore === 3 && opponentScore === 3) {
+        if (player === 1) currentFirst = 4; else currentSecond = 4;
+    } else if (playerScore === 3 && opponentScore < 3) {
+        let wasBreak = false;
+        if (player !== isServingPlayer) {
+            wasBreak = true;
+            if (player === 1) {
+                breaks++;
+                document.getElementById('statBreaks').textContent = breaks;
+            } else {
+                breaksP2++;
+                document.getElementById('statBreaksP2').textContent = breaksP2;
+            }
+        }
+        finishGame(player, wasBreak); 
+        return;
+    } else if (playerScore === 2 && opponentScore === 3) {
+        if (player === 1) currentFirst = 3; else currentSecond = 3;
+    } else {
+        if (player === 1) currentFirst++; else currentSecond++;
+    }
+    currentPoints.push(formatScoreDisplay(currentFirst, currentSecond));
+    updateCurrentGameDisplay();
+    syncStatsToFirebase();
+}
+
+function startMatch() {
+    const myName = myNameInput.value.trim();
+    const opponentName = opponentNameInput.value.trim();
+    const matchName = matchNameInput.value.trim();
+    const matchDate = matchDateInput.value.trim();
+    const tournament = tournamentInput.value.trim() || 'GSPD';
+    const flag1 = flag1Input.value.trim() || '';
+    const flag2 = flag2Input.value.trim() || '';
+    
+    // Получаем WTN и ITF
+    const wtn1 = document.getElementById('wtn1Input').value.trim();
+    const wtn2 = document.getElementById('wtn2Input').value.trim();
+    const itf1 = document.getElementById('itf1Input').value.trim();
+    const itf2 = document.getElementById('itf2Input').value.trim();
+    
+    matchFormat = matchFormatSelect.value;
+    
+    if (!myName || !opponentName || !matchName || !matchDate) {
+        alert("Пожалуйста, введите имена игроков, название и дату матча, чтобы начать игру.");
+        return;
+    }
+    resetStatistics();
+    matchStarted = true;
+    isMatchActive = true;
+    isMatchFinished = false;
+    isRetired = false;
+    matchStartTime = new Date();
+    matchEndTime = null;
+    serveAttempt = 1;
+    isServingPlayer = initialServer;
+    updateServeStatus();
+    startTime = new Date();
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(updateTimerDisplay, 1000);
+    updateTimerDisplay();
+    
+    const formatText = matchFormat === '3set' ? '3 сета' : 'Тай-брейк вместо 3-го сета';
+    matchStatus.textContent = `🏟️ Матч начат! Формат: ${formatText}`;
+    matchStatus.className = 'match-status active';
+    matchStatus.style.background = '#1d7a4a';
+    matchStatus.style.color = 'white';
+    matchStatus.style.display = 'block';
+    
+    addPointWeBtn.disabled = false;
+    addPointThemBtn.disabled = false;
+    faultBtn.disabled = false;
+    firstServeBtn.disabled = false;
+    secondServeBtn.disabled = false;
+    document.getElementById('btnAce').disabled = false;
+    document.getElementById('btnWinner').disabled = false;
+    document.getElementById('btnDf').disabled = false;
+    document.getElementById('btnUeThem').disabled = false;
+    document.getElementById('btnUeWe').disabled = false;
+    document.getElementById('undoPointBtn').disabled = false;
+    document.getElementById('clearPointsBtn').disabled = false;
+    document.getElementById('clearCurrentGameBtn').disabled = false;
+    finishMatchBtn.disabled = false;
+    retireP1Btn.disabled = false;
+    retireP2Btn.disabled = false;
+    startMatchBtn.disabled = true;
+    startMatchBtn.textContent = '✅ Начат';
+    myNameInput.disabled = true;
+    opponentNameInput.disabled = true;
+    matchNameInput.disabled = true;
+    matchDateInput.disabled = true;
+    tournamentInput.disabled = true;
+    flag1Input.disabled = true;
+    flag2Input.disabled = true;
+    matchFormatSelect.disabled = true;
+    document.getElementById('wtn1Input').disabled = true;
+    document.getElementById('itf1Input').disabled = true;
+    document.getElementById('wtn2Input').disabled = true;
+    document.getElementById('itf2Input').disabled = true;
+    livePanel.classList.remove('match-finished', 'match-retired');
+    updateServerIndicator();
+    updateCurrentGameDisplay();
+    saveStatsBtn.disabled = false;
+
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    
+    if (firebaseInitialized && database) {
+        const matchData = {
+            id: code,
+            player1: myName,
+            player2: opponentName,
+            matchName: matchName,
+            matchDate: matchDate,
+            tournament: tournament,
+            flag1: flag1,
+            flag2: flag2,
+            format: matchFormat,
+            status: 'active',
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            wtn1: wtn1,
+            wtn2: wtn2,
+            itf1: itf1,
+            itf2: itf2,
+            stats: {
+                p1: { games: 0, points: 0, ace: 0, winner: 0, df: 0, ue: 0, breaks: 0, breakPointsSaved: 0, serve1: 0, serve2: 0, fault1: 0 },
+                p2: { games: 0, points: 0, ace: 0, winner: 0, df: 0, ue: 0, breaks: 0, breakPointsSaved: 0, serve1: 0, serve2: 0, fault1: 0 }
+            },
+            sets: { 1: { p1: 0, p2: 0 }, 2: { p1: 0, p2: 0 }, 3: { p1: 0, p2: 0 } },
+            currentGame: { p1: 0, p2: 0, isTiebreak: false, serve: 1 },
+            gamePoints: [],
+            pointMetadata: [],
+            history: [],
+            currentSet: 1,
+            gameNumber: 1,
+            isMatchFinished: false,
+            isRetired: false,
+            duration: 0,
+            startTime: null,
+            winner: null
+        };
+        
+        database.ref('matches/' + code).set(matchData)
+            .then(() => {
+                matchId = code;
+                matchRef = database.ref('matches/' + code);
+                startFirebaseListener();
+                
+                document.getElementById('shareCode').textContent = code;
+                document.getElementById('shareBox').classList.add('visible');
+                
+                alert('✅ Матч создан! Код для тренера: ' + code + '\nОтправьте этот код тренеру, чтобы он мог смотреть статистику в реальном времени.');
+                
+                saveGameToLocal(code, matchData);
+            })
+            .catch(err => {
+                console.error('Ошибка сохранения матча:', err);
+                alert('❌ Ошибка сохранения матча: ' + err.message);
+            });
+    } else {
+        alert('⚠️ Firebase не инициализирован. Код матча не будет сохранён.');
+    }
+}
+
+function finishMatch() {
+    if (!matchStarted) {
+        alert('Матч ещё не начат!');
+        return;
+    }
+    if (isMatchFinished) {
+        alert('Матч уже завершён!');
+        return;
+    }
+    if (!confirm('Вы уверены, что хотите завершить матч?')) {
+        return;
+    }
+    isMatchFinished = true;
+    isMatchActive = false;
+    isRetired = false;
+    matchEndTime = new Date();
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    if (matchTimerInterval) {
+        clearInterval(matchTimerInterval);
+        matchTimerInterval = null;
+    }
+    const duration = timerElement ? timerElement.textContent : '00:00';
+    const myName = getMyName() || 'Игрок 1';
+    const opponentName = getOpponentName() || 'Игрок 2';
+    let winner = '';
+    let winnerType = 0;
+    const sets1 = setWins[1].p1 + setWins[2].p1 + setWins[3].p1;
+    const sets2 = setWins[1].p2 + setWins[2].p2 + setWins[3].p2;
+    if (sets1 > sets2) {
+        winner = myName;
+        winnerType = 1;
+    } else if (sets2 > sets1) {
+        winner = opponentName;
+        winnerType = 2;
+    } else {
+        winner = 'Ничья';
+        winnerType = 0;
+    }
+    addPointWeBtn.disabled = true;
+    addPointThemBtn.disabled = true;
+    faultBtn.disabled = true;
+    firstServeBtn.disabled = true;
+    secondServeBtn.disabled = true;
+    document.getElementById('btnAce').disabled = true;
+    document.getElementById('btnWinner').disabled = true;
+    document.getElementById('btnDf').disabled = true;
+    document.getElementById('btnUeThem').disabled = true;
+    document.getElementById('btnUeWe').disabled = true;
+    document.getElementById('undoPointBtn').disabled = true;
+    document.getElementById('clearPointsBtn').disabled = true;
+    document.getElementById('clearCurrentGameBtn').disabled = true;
+    finishMatchBtn.disabled = true;
+    retireP1Btn.disabled = true;
+    retireP2Btn.disabled = true;
+    startMatchBtn.disabled = false;
+    startMatchBtn.textContent = '▶ Новый матч';
+    myNameInput.disabled = false;
+    opponentNameInput.disabled = false;
+    matchNameInput.disabled = false;
+    matchDateInput.disabled = false;
+    tournamentInput.disabled = false;
+    flag1Input.disabled = false;
+    flag2Input.disabled = false;
+    matchFormatSelect.disabled = false;
+    document.getElementById('wtn1Input').disabled = false;
+    document.getElementById('itf1Input').disabled = false;
+    document.getElementById('wtn2Input').disabled = false;
+    document.getElementById('itf2Input').disabled = false;
+    matchStatus.textContent = `🏁 Матч завершён! Победитель: ${winner} Время: ${duration}`;
+    matchStatus.className = 'match-status finished';
+    matchStatus.style.display = 'block';
+    livePanel.classList.remove('match-retired');
+    livePanel.classList.add('match-finished');
+    serveStatus.textContent = '🏁 Матч завершён';
+    const matchResult = `${myName} ${setWins[1].p1}:${setWins[1].p2} (Сет 1) / ${setWins[2].p1}:${setWins[2].p2} (Сет 2) / ${setWins[3].p1}:${setWins[3].p2} (Сет 3) — ${opponentName}`;
+    addMatchToHistory(matchResult, duration, winner, winnerType, false, '');
+    if (timerElement) timerElement.textContent = '00:00';
+    if (matchDurationStat) matchDurationStat.textContent = '0:00';
+    updateCurrentGameDisplay();
+    syncStatsToFirebase();
+    
+    if (matchRef) {
+        matchRef.update({
+            isMatchFinished: true,
+            duration: duration,
+            endTime: new Date().toISOString()
+        });
+    }
+    
+    setTimeout(function() {
+        saveStatsImage();
+    }, 1500);
+}
+
+function finishGame(winner, wasBreak = false) {
+    if (setCompleted[currentSet]) return;
+    const scoreStr = formatScoreDisplay(currentFirst, currentSecond);
+    if (currentPoints.length === 0 || currentPoints[currentPoints.length - 1] !== scoreStr) {
+        currentPoints.push(scoreStr);
+    }
+    
+    records.push({
+        set: currentSet, winner: winner,
+        first: currentFirst, second: currentSecond,
+        points: [...currentPoints], metadata: [...pointMetadata],
+        isTiebreak: isTiebreak,
+        isBreak: wasBreak,
+        breakPointSaved: (wasBreak && winner === isServingPlayer) ? true : false
+    });
+    
+    if (winner === 1) setWins[currentSet].p1++; else setWins[currentSet].p2++;
+    currentGameNumber++; currentPoints = []; pointMetadata = []; currentFirst = 0; currentSecond = 0;
+    isBreakPoint = false;
+    breakPointSituation = false;
+    updateCurrentGameDisplay(); updateAll();
+    syncStatsToFirebase();
+    
+    if (checkTiebreak()) return;
+    if (checkSetCompletion()) return;
+}
+
+function checkTiebreak() {
+    if (setWins[currentSet].p1 === 6 && setWins[currentSet].p2 === 6 && !tiebreakStarted[currentSet] && !setCompleted[currentSet]) {
+        tiebreakStarted[currentSet] = true;
+        switchToTiebreakMode();
+        syncStatsToFirebase();
+        return true;
+    }
+    return false;
+}
+
+function checkTiebreakComplete() {
+    if (!isTiebreak) return false;
+    if ((currentFirst >= 7 || currentSecond >= 7) && Math.abs(currentFirst - currentSecond) >= 2) {
+        const winner = currentFirst > currentSecond ? 1 : 2;
+        setTiebreakScore[currentSet] = `${currentFirst}:${currentSecond}`;
+        records.push({
+            set: currentSet, winner: winner, first: currentFirst, second: currentSecond,
+            points: [...currentPoints], metadata: [...pointMetadata], isTiebreak: true,
+            isBreak: false, breakPointSaved: false
+        });
+        if (winner === 1) setWins[currentSet].p1++; else setWins[currentSet].p2++;
+        setCompleted[currentSet] = true; setWinner[currentSet] = winner;
+        alert(`🎉 Тай-брейк завершён! Победитель: ${winner === 1 ? getMyName() : getOpponentName()} (${currentFirst}:${currentSecond})`);
+        alert("↔ Смена сторон перед началом нового сета!");
+        tiebreakStarted[currentSet] = false; currentGameNumber++; currentPoints = []; pointMetadata = []; currentFirst = 0; currentSecond = 0;
+        switchToNormalMode();
+        if (currentSet < 3) {
+            currentSet++;
+            while (currentSet <= 3 && setCompleted[currentSet]) currentSet++;
+        }
+        updateCurrentGameDisplay(); updateAll();
+        syncStatsToFirebase();
+        finishGameByRules(winner);
+        return true;
+    }
+    return false;
+}
+
+function switchToTiebreakMode() {
+    isTiebreak = true; tiebreakInfo.style.display = 'inline'; gameTypeLabel.textContent = 'Тай-брейк';
+    livePanel.classList.add('tiebreak-mode'); scoreDisplay.classList.add('tiebreak-display');
+    pointsLabel.textContent = '📝 Очки тай-брейка:'; updateCurrentGameDisplay();
+    syncStatsToFirebase();
+}
+
+function switchToNormalMode() {
+    isTiebreak = false; tiebreakInfo.style.display = 'none'; gameTypeLabel.textContent = 'Гейм';
+    livePanel.classList.remove('tiebreak-mode'); scoreDisplay.classList.remove('tiebreak-display');
+    pointsLabel.textContent = '📝 Розыгрыши:'; updateCurrentGameDisplay();
+    syncStatsToFirebase();
+}
+
+function updateSetsDisplay() {
+    set1Score.textContent = `${setWins[1].p1}:${setWins[1].p2}`;
+    set2Score.textContent = `${setWins[2].p1}:${setWins[2].p2}`;
+    set3Score.textContent = `${setWins[3].p1}:${setWins[3].p2}`;
+    const setBlocks = [
+        {b: set1Block, s: set1Status, n: 1, tiebreakEl: set1Tiebreak},
+        {b: set2Block, s: set2Status, n: 2, tiebreakEl: set2Tiebreak},
+        {b: set3Block, s: set3Status, n: 3, tiebreakEl: set3Tiebreak}
+    ];
+    setBlocks.forEach(({b, s, n, tiebreakEl}) => {
+        b.classList.remove('active', 'tiebreak');
+        if (setCompleted[n]) {
+            const winner = setWinner[n];
+            if (winner === 1) {
+                s.textContent = '✅';
+                s.className = 'set-status win';
+            } else if (winner === 2) {
+                s.textContent = '❌';
+                s.className = 'set-status lose';
+            }
+            if (setTiebreakScore[n]) {
+                tiebreakEl.textContent = `ТБ ${setTiebreakScore[n]}`;
+                tiebreakEl.style.display = 'inline';
+            } else {
+                tiebreakEl.style.display = 'none';
+            }
+        } else if (n === currentSet) {
+            b.classList.add('active');
+            if (tiebreakStarted[n]) {
+                b.classList.add('tiebreak');
+                s.textContent = '⚡';
+                s.className = 'set-status tiebreak';
+            } else {
+                s.textContent = '▶';
+                s.className = 'set-status active-set';
+            }
+            tiebreakEl.style.display = 'none';
+        } else {
+            s.textContent = '⏳';
+            s.className = 'set-status waiting';
+            tiebreakEl.style.display = 'none';
+        }
+    });
+}
+
+function checkSetCompletion() {
+    const p1 = setWins[currentSet].p1; const p2 = setWins[currentSet].p2;
+    if (tiebreakStarted[currentSet]) return false;
+    if ((p1 >= 6 || p2 >= 6) && Math.abs(p1 - p2) >= 2) {
+        setCompleted[currentSet] = true; setWinner[currentSet] = p1 > p2 ? 1 : 2;
+        alert(`🎉 Сет ${currentSet} завершён со счётом ${p1}:${p2}`);
+        alert("↔ Смена сторон перед следующим сетом!");
+        if (currentSet < 3) {
+            currentSet++;
+            while (currentSet <= 3 && setCompleted[currentSet]) currentSet++;
+        }
+        updateCurrentGameDisplay(); updateAll();
+        syncStatsToFirebase();
+        finishGameByRules(setWinner[currentSet]);
+        return true;
+    }
+    return false;
+}
+
+function finishGameByRules(winner) {
+    if (isMatchFinished) return;
+    let setsWon1 = 0, setsWon2 = 0;
+    for (let i = 1; i <= 3; i++) {
+        if (setCompleted[i]) {
+            if (setWinner[i] === 1) setsWon1++;
+            else if (setWinner[i] === 2) setsWon2++;
+        }
+    }
+    
+    if (matchFormat === 'tiebreak') {
+        if (setsWon1 === 1 && setsWon2 === 1 && !isTiebreak && !setCompleted[3]) {
+            if (!tiebreakStarted[3]) {
+                tiebreakStarted[3] = true;
+                currentSet = 3;
+                switchToTiebreakMode();
+                alert("⚡ Счёт по сетам 1:1! Играем супер-тай-брейк до 10 очков вместо 3-го сета!");
+                updateCurrentGameDisplay();
+                updateAll();
+                syncStatsToFirebase();
+                return;
+            }
+            if (tiebreakStarted[3] && isTiebreak) {
+                if ((currentFirst >= 10 || currentSecond >= 10) && Math.abs(currentFirst - currentSecond) >= 2) {
+                    const tbWinner = currentFirst > currentSecond ? 1 : 2;
+                    setTiebreakScore[3] = `${currentFirst}:${currentSecond}`;
+                    records.push({
+                        set: 3, winner: tbWinner, first: currentFirst, second: currentSecond,
+                        points: [...currentPoints], metadata: [...pointMetadata], isTiebreak: true,
+                        isBreak: false, breakPointSaved: false
+                    });
+                    if (tbWinner === 1) setWins[3].p1++; else setWins[3].p2++;
+                    setCompleted[3] = true;
+                    setWinner[3] = tbWinner;
+                    alert(`🎉 Супер-тай-брейк завершён! Победитель: ${tbWinner === 1 ? getMyName() : getOpponentName()} (${currentFirst}:${currentSecond})`);
+                    tiebreakStarted[3] = false;
+                    currentPoints = [];
+                    pointMetadata = [];
+                    currentFirst = 0;
+                    currentSecond = 0;
+                    switchToNormalMode();
+                    updateCurrentGameDisplay();
+                    updateAll();
+                    syncStatsToFirebase();
+                    finishGameByRules(tbWinner);
+                    return;
+                }
+                return;
+            }
+        }
+    }
+    
+    if (setsWon1 === 2 || setsWon2 === 2) {
+        isMatchFinished = true;
+        isMatchActive = false;
+        isRetired = false;
+        matchEndTime = new Date();
+        if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+        if (matchTimerInterval) {
+            clearInterval(matchTimerInterval);
+            matchTimerInterval = null;
+        }
+        const duration = timerElement ? timerElement.textContent : '00:00';
+        const myName = getMyName() || 'Игрок 1';
+        const opponentName = getOpponentName() || 'Игрок 2';
+        const winnerName = setsWon1 === 2 ? myName : opponentName;
+        const winnerType = setsWon1 === 2 ? 1 : 2;
+        addPointWeBtn.disabled = true;
+        addPointThemBtn.disabled = true;
+        faultBtn.disabled = true;
+        firstServeBtn.disabled = true;
+        secondServeBtn.disabled = true;
+        document.getElementById('btnAce').disabled = true;
+        document.getElementById('btnWinner').disabled = true;
+        document.getElementById('btnDf').disabled = true;
+        document.getElementById('btnUeThem').disabled = true;
+        document.getElementById('btnUeWe').disabled = true;
+        document.getElementById('undoPointBtn').disabled = true;
+        document.getElementById('clearPointsBtn').disabled = true;
+        document.getElementById('clearCurrentGameBtn').disabled = true;
+        finishMatchBtn.disabled = true;
+        retireP1Btn.disabled = true;
+        retireP2Btn.disabled = true;
+        startMatchBtn.disabled = false;
+        startMatchBtn.textContent = '▶ Новый матч';
+        myNameInput.disabled = false;
+        opponentNameInput.disabled = false;
+        matchNameInput.disabled = false;
+        matchDateInput.disabled = false;
+        tournamentInput.disabled = false;
+        flag1Input.disabled = false;
+        flag2Input.disabled = false;
+        matchFormatSelect.disabled = false;
+        document.getElementById('wtn1Input').disabled = false;
+        document.getElementById('itf1Input').disabled = false;
+        document.getElementById('wtn2Input').disabled = false;
+        document.getElementById('itf2Input').disabled = false;
+        matchStatus.textContent = `🏆 Матч завершён! Победитель: ${winnerName} Время: ${duration}`;
+        matchStatus.className = 'match-status finished';
+        matchStatus.style.display = 'block';
+        livePanel.classList.remove('match-retired');
+        livePanel.classList.add('match-finished');
+        serveStatus.textContent = '🏆 Матч завершён';
+        const matchResult = `${myName} ${setWins[1].p1}:${setWins[1].p2} (Сет 1) / ${setWins[2].p1}:${setWins[2].p2} (Сет 2) / ${setWins[3].p1}:${setWins[3].p2} (Сет 3) — ${opponentName}`;
+        addMatchToHistory(matchResult, duration, winnerName, winnerType, false, '');
+        if (timerElement) timerElement.textContent = '00:00';
+        if (matchDurationStat) matchDurationStat.textContent = '0:00';
+        updateCurrentGameDisplay();
+        syncStatsToFirebase();
+        
+        setTimeout(function() {
+            saveStatsImage();
+        }, 1500);
+    }
+}
+
+function retirePlayer(playerNumber) {
+    if (!matchStarted) {
+        alert('Матч ещё не начат!');
+        return;
+    }
+    if (isMatchFinished) {
+        alert('Матч уже завершён!');
+        return;
+    }
+    const playerName = playerNumber === 1 ? getMyName() || 'Игрок 1' : getOpponentName() || 'Игрок 2';
+    const winnerName = playerNumber === 1 ? getOpponentName() || 'Игрок 2' : getMyName() || 'Игрок 1';
+    if (!confirm(`Вы уверены, что ${playerName} снимается с матча?\n\nПобедителем будет объявлен ${winnerName}.`)) {
+        return;
+    }
+    isMatchFinished = true;
+    isMatchActive = false;
+    isRetired = true;
+    matchEndTime = new Date();
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    if (matchTimerInterval) {
+        clearInterval(matchTimerInterval);
+        matchTimerInterval = null;
+    }
+    const duration = timerElement ? timerElement.textContent : '00:00';
+    const winnerType = playerNumber === 1 ? 2 : 1;
+    const s1 = setWins[1].p1 + setWins[2].p1 + setWins[3].p1;
+    const s2 = setWins[1].p2 + setWins[2].p2 + setWins[3].p2;
+    const note = `Ret(${s1}-${s2})`;
+    addPointWeBtn.disabled = true;
+    addPointThemBtn.disabled = true;
+    faultBtn.disabled = true;
+    firstServeBtn.disabled = true;
+    secondServeBtn.disabled = true;
+    document.getElementById('btnAce').disabled = true;
+    document.getElementById('btnWinner').disabled = true;
+    document.getElementById('btnDf').disabled = true;
+    document.getElementById('btnUeThem').disabled = true;
+    document.getElementById('btnUeWe').disabled = true;
+    document.getElementById('undoPointBtn').disabled = true;
+    document.getElementById('clearPointsBtn').disabled = true;
+    document.getElementById('clearCurrentGameBtn').disabled = true;
+    finishMatchBtn.disabled = true;
+    retireP1Btn.disabled = true;
+    retireP2Btn.disabled = true;
+    startMatchBtn.disabled = false;
+    startMatchBtn.textContent = '▶ Новый матч';
+    myNameInput.disabled = false;
+    opponentNameInput.disabled = false;
+    matchNameInput.disabled = false;
+    matchDateInput.disabled = false;
+    tournamentInput.disabled = false;
+    flag1Input.disabled = false;
+    flag2Input.disabled = false;
+    matchFormatSelect.disabled = false;
+    document.getElementById('wtn1Input').disabled = false;
+    document.getElementById('itf1Input').disabled = false;
+    document.getElementById('wtn2Input').disabled = false;
+    document.getElementById('itf2Input').disabled = false;
+    matchStatus.textContent = `🚫 ${playerName} снялся! Победитель: ${winnerName} ${note} Время: ${duration}`;
+    matchStatus.className = 'match-status retired';
+    matchStatus.style.display = 'block';
+    livePanel.classList.remove('match-finished');
+    livePanel.classList.add('match-retired');
+    serveStatus.textContent = '🚫 Матч завершён (снятие)';
+    const myName = getMyName() || 'Игрок 1';
+    const opponentName = getOpponentName() || 'Игрок 2';
+    const matchResult = `${myName} ${setWins[1].p1}:${setWins[1].p2} (Сет 1) / ${setWins[2].p1}:${setWins[2].p2} (Сет 2) / ${setWins[3].p1}:${setWins[3].p2} (Сет 3) — ${opponentName}`;
+    addMatchToHistory(matchResult, duration, `${winnerName}`, winnerType, true, note);
+    if (timerElement) timerElement.textContent = '00:00';
+    if (matchDurationStat) matchDurationStat.textContent = '0:00';
+    updateCurrentGameDisplay();
+    syncStatsToFirebase();
+    
+    setTimeout(function() {
+        saveStatsImage();
+    }, 1500);
+}
+
+function validateMatchFields() {
+    const myName = myNameInput.value.trim();
+    const opponentName = opponentNameInput.value.trim();
+    const matchName = matchNameInput.value.trim();
+    const matchDate = matchDateInput.value.trim();
+    const allFilled = myName && opponentName && matchName && matchDate;
+    startMatchBtn.disabled = !allFilled || isMatchActive || matchId !== null;
+    if (isMatchActive) {
+        matchStatus.textContent = '🏟️ Матч в процессе...';
+        matchStatus.className = 'match-status active';
+        matchStatus.style.background = '#1d7a4a';
+        matchStatus.style.color = 'white';
+        matchStatus.style.display = 'block';
+    } else if (isMatchFinished) {
+    } else if (allFilled && !matchStarted) {
+        matchStatus.textContent = '✅ Все поля заполнены. Нажмите "Начать матч"!';
+        matchStatus.className = 'match-status active';
+        matchStatus.style.background = '#d4edda';
+        matchStatus.style.color = '#1d7a4a';
+        matchStatus.style.display = 'block';
+    } else if (!allFilled && !matchStarted) {
+        matchStatus.textContent = '⏳ Заполните все поля для начала матча';
+        matchStatus.className = 'match-status active';
+        matchStatus.style.background = '#fff3cd';
+        matchStatus.style.color = '#8a6a1a';
+        matchStatus.style.display = 'block';
+    }
+}
+
+function resetMatchTimer() {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    if (matchTimerInterval) {
+        clearInterval(matchTimerInterval);
+        matchTimerInterval = null;
+    }
+    matchStartTime = null;
+    matchEndTime = null;
+    startTime = null;
+    if (timerElement) timerElement.textContent = '00:00';
+    if (matchDurationStat) matchDurationStat.textContent = '0:00';
+}
+
+function updateServerSelectOptions() {
+    const myName = document.getElementById('myNameInput').value;
+    const opponentName = document.getElementById('opponentNameInput').value;
+    const currentValue = firstServerSelect.value;
+    if (!myName && !opponentName) {
+        firstServerSelect.innerHTML = '<option value="">Выберите игрока</option>';
+        return;
+    }
+    firstServerSelect.innerHTML = `
+        ${myName ? `<option value="1">${myName}</option>` : ''}
+        ${opponentName ? `<option value="2">${opponentName}</option>` : ''}
+    `;
+    if (firstServerSelect.querySelector(`option[value="${currentValue}"]`)) {
+        firstServerSelect.value = currentValue;
+    }
+    if (!isMatchActive && !matchStarted) {
+        const selectedValue = parseInt(firstServerSelect.value);
+        if (selectedValue === 1 || selectedValue === 2) {
+            isServingPlayer = selectedValue;
+            serveAttempt = 1;
+            updateServeStatus();
+        }
+    }
+}
+
+function formatScoreDisplay(first, second) {
+    if (isTiebreak) return `${first}/${second}`;
+    const f = tennisMap[first] !== undefined ? tennisMap[first] : first;
+    const s = tennisMap[second] !== undefined ? tennisMap[second] : second;
+    return `${f}/${s}`;
+}
+
+function updatePointsDisplay() {
+    let wePoints = [];
+    let themPoints = [];
+    currentPoints.forEach((p, idx) => {
+        const parts = p.split('/');
+        if (parts.length === 2) {
+            let meta = pointMetadata[idx] ? ` [${pointMetadata[idx].toUpperCase()}]` : '';
+            let p1Current, p2Current;
+            let p1Prev = 0, p2Prev = 0;
+            if (isTiebreak) {
+                p1Current = parseInt(parts[0], 10);
+                p2Current = parseInt(parts[1], 10);
+                if (idx > 0) {
+                    const prevParts = currentPoints[idx - 1].split('/');
+                    p1Prev = parseInt(prevParts[0], 10);
+                    p2Prev = parseInt(prevParts[1], 10);
+                }
+            } else {
+                p1Current = revTennisMap[parts[0]] !== undefined ? revTennisMap[parts[0]] : parseInt(parts[0], 10);
+                p2Current = revTennisMap[parts[1]] !== undefined ? revTennisMap[parts[1]] : parseInt(parts[1], 10);
+                if (idx > 0) {
+                    const prevParts = currentPoints[idx - 1].split('/');
+                    p1Prev = revTennisMap[prevParts[0]] !== undefined ? revTennisMap[prevParts[0]] : parseInt(prevParts[0], 10);
+                    p2Prev = revTennisMap[prevParts[1]] !== undefined ? revTennisMap[prevParts[1]] : parseInt(prevParts[1], 10);
+                }
+            }
+            let isWePoint = false;
+            if (p1Current > p1Prev) {
+                isWePoint = true;
+            } else if (p2Current > p2Prev) {
+                isWePoint = false;
+            } else if (p1Current === 3 && p2Current === 3) {
+                if (p2Prev === 4) {
+                    isWePoint = true;
+                } else if (p1Prev === 4) {
+                    isWePoint = false;
+                }
+            }
+            if (isWePoint) {
+                wePoints.push(p + meta);
+            } else {
+                themPoints.push(p + meta);
+            }
+        }
+    });
+    wePointsList.innerHTML = wePoints.length === 0 ? '<span style="color:#7599ae;font-size:0.55rem;">Нет</span>' :
+        wePoints.map(p => `<span class="point-item winner-we ${isTiebreak ? 'tiebreak-point' : ''}">${p}</span>`).join('');
+    themPointsList.innerHTML = themPoints.length === 0 ? '<span style="color:#7599ae;font-size:0.55rem;">Нет</span>' :
+        themPoints.map(p => `<span class="point-item winner-them ${isTiebreak ? 'tiebreak-point' : ''}">${p}</span>`).join('');
+}
+
+function undoLastPoint() {
+    if (!matchStarted) { alert('Сначала начните матч!'); return; }
+    if (isMatchFinished) { alert('Матч уже завершён!'); return; }
+    if (currentPoints.length === 0) return;
+    currentPoints.pop();
+    pointMetadata.pop();
+    if (currentPoints.length === 0) {
+        currentFirst = 0; currentSecond = 0;
+    } else {
+        const last = currentPoints[currentPoints.length - 1].split('/');
+        if (isTiebreak) {
+            currentFirst = parseInt(last[0], 10);
+            currentSecond = parseInt(last[1], 10);
+        } else {
+            currentFirst = revTennisMap[last[0]] !== undefined ? revTennisMap[last[0]] : parseInt(last[0], 10);
+            currentSecond = revTennisMap[last[1]] !== undefined ? revTennisMap[last[1]] : parseInt(last[1], 10);
+        }
+    }
+    serveAttempt = 1;
+    updateServeStatus();
+    updateCurrentGameDisplay();
+    syncStatsToFirebase();
+}
+
+function recalculateStateFromRecords() {
+    setWins = {1: {p1: 0, p2: 0}, 2: {p1: 0, p2: 0}, 3: {p1: 0, p2: 0}};
+    setCompleted = {1: false, 2: false, 3: false};
+    setWinner = {1: null, 2: null, 3: null};
+    setTiebreakScore = {1: null, 2: null, 3: null};
+    tiebreakStarted = {1: false, 2: false, 3: false};
+    isMatchFinished = false;
+    isMatchActive = false;
+    isRetired = false;
+    countFault1 = 0;
+    countFault2 = 0;
+    countServe1 = 0;
+    countServe2 = 0;
+    breakPointsSaved = 0;
+    breaks = 0;
+    breakPointsSavedP2 = 0;
+    breaksP2 = 0;
+    updateFaultStatsDisplay();
+    resetMatchTimer();
+    records.forEach(r => {
+        if (r.winner === 1) setWins[r.set].p1++; else setWins[r.set].p2++;
+        if (r.isTiebreak) {
+            setTiebreakScore[r.set] = `${r.first}:${r.second}`;
+            setCompleted[r.set] = true;
+            setWinner[r.set] = r.winner;
+        }
+        if (r.isBreak) {
+            if (r.winner === 1) breaks++; else breaksP2++;
+        }
+        if (r.breakPointSaved) {
+            if (r.winner === 1) breakPointsSaved++; else breakPointsSavedP2++;
+        }
+    });
+    for(let s = 1; s <= 3; s++) {
+        let p1 = setWins[s].p1, p2 = setWins[s].p2;
+        if ((p1 >= 6 || p2 >= 6) && Math.abs(p1-p2) >= 2) {
+            setCompleted[s] = true;
+            setWinner[s] = p1 > p2 ? 1 : 2;
+        }
+    }
+    let setsWon1 = 0, setsWon2 = 0;
+    for (let i = 1; i <= 3; i++) {
+        if (setCompleted[i]) {
+            if (setWinner[i] === 1) setsWon1++;
+            else if (setWinner[i] === 2) setsWon2++;
+        }
+    }
+    if (setsWon1 === 2 || setsWon2 === 2) {
+        isMatchFinished = true;
+        finishMatchBtn.disabled = true;
+        retireP1Btn.disabled = true;
+        retireP2Btn.disabled = true;
+        faultBtn.disabled = true;
+        firstServeBtn.disabled = true;
+        secondServeBtn.disabled = true;
+        startMatchBtn.disabled = false;
+        startMatchBtn.textContent = '▶ Новый матч';
+        const winnerName = setsWon1 === 2 ? getMyName() : getOpponentName();
+        matchStatus.textContent = `🏆 Матч завершён! Победитель: ${winnerName}`;
+        matchStatus.className = 'match-status finished';
+        matchStatus.style.display = 'block';
+        livePanel.classList.remove('match-retired');
+        livePanel.classList.add('match-finished');
+        serveStatus.textContent = '🏆 Матч завершён';
+    }
+    currentSet = 1;
+    while (currentSet < 3 && setCompleted[currentSet]) currentSet++;
+    currentGameNumber = records.length + 1;
+    currentPoints = [];
+    pointMetadata = [];
+    currentFirst = 0;
+    currentSecond = 0;
+    if (setWins[currentSet].p1 === 6 && setWins[currentSet].p2 === 6) {
+        tiebreakStarted[currentSet] = true;
+        switchToTiebreakMode();
+    } else {
+        switchToNormalMode();
+    }
+    updateFaultStatsDisplay();
+    syncStatsToFirebase();
+}
+
+function renderTable() {
+    if (records.length === 0) { tableBody.innerHTML = '<tr><td colspan="7" class="row-empty">Нет данных</td></tr>'; return; }
+    let html = '';
+    let shortCount = 0, mediumCount = 0, longCount = 0, epicCount = 0, tiebreakCount = 0;
+    let aceCountLocal = 0, winnerCountLocal = 0, dfCountLocal = 0, ueCountLocal = 0;
+    records.forEach((rec, index) => {
+        const total = rec.points.length;
+        if (rec.isTiebreak) tiebreakCount++;
+        else if (total <= 4) shortCount++;
+        else if (total <= 6) mediumCount++;
+        else if (total <= 9) longCount++;
+        else epicCount++;
+        if (rec.metadata) {
+            rec.metadata.forEach(m => {
+                if (m === 'ace') aceCountLocal++;
+                if (m === 'winner') winnerCountLocal++;
+                if (m === 'df') dfCountLocal++;
+                if (m === 'ue') ueCountLocal++;
+            });
+        }
+        let pointsHtml = '<div class="points-inline">';
+        rec.points.forEach((p, idx) => {
+            let cls = rec.isTiebreak ? 'tiebreak-p' : '';
+            let isWePoint = false;
+            const parts = p.split('/');
+            if (parts.length === 2) {
+                let p1Current, p2Current;
+                let p1Prev = 0, p2Prev = 0;
+                if (rec.isTiebreak) {
+                    p1Current = parseInt(parts[0], 10);
+                    p2Current = parseInt(parts[1], 10);
+                    if (idx > 0) {
+                        const prevParts = rec.points[idx - 1].split('/');
+                        p1Prev = parseInt(prevParts[0], 10);
+                        p2Prev = parseInt(prevParts[1], 10);
+                    }
+                } else {
+                    p1Current = revTennisMap[parts[0]] !== undefined ? revTennisMap[parts[0]] : parseInt(parts[0], 10);
+                    p2Current = revTennisMap[parts[1]] !== undefined ? revTennisMap[parts[1]] : parseInt(parts[1], 10);
+                    if (idx > 0) {
+                        const prevParts = rec.points[idx - 1].split('/');
+                        p1Prev = revTennisMap[prevParts[0]] !== undefined ? revTennisMap[prevParts[0]] : parseInt(prevParts[0], 10);
+                        p2Prev = revTennisMap[prevParts[1]] !== undefined ? revTennisMap[prevParts[1]] : parseInt(prevParts[1], 10);
+                    }
+                }
+                if (p1Current > p1Prev) {
+                    isWePoint = true;
+                } else if (p2Current > p2Prev) {
+                    isWePoint = false;
+                } else if (p1Current === 3 && p2Current === 3) {
+                    if (p2Prev === 4) isWePoint = true;
+                    else if (p1Prev === 4) isWePoint = false;
+                }
+            }
+            if (isWePoint) cls += ' win-we';
+            else cls += ' win-them';
+            let metaLabel = rec.metadata && rec.metadata[idx] ? ` (${rec.metadata[idx].toUpperCase()})` : '';
+            pointsHtml += `<span class="p ${cls}">${p}${metaLabel}</span>`;
+        });
+        pointsHtml += '</div>';
+        const setBadge = rec.isTiebreak ? `<span class="badge badge-tiebreak">ТБ</span>` : `<span class="badge">С${rec.set}</span>`;
+        let analysisLabel = rec.isTiebreak ? 'Тай-брейк' : (total <= 4 ? 'Легкий' : (total <= 6 ? 'Средний' : (total <= 9 ? 'Тяжелый' : 'Эпичный')));
+        let analysisCls = rec.isTiebreak ? 'tiebreak' : (total <= 4 ? 'easy-win' : (total <= 6 ? 'normal' : (total <= 9 ? 'hard' : 'epic')));
+        if (rec.isBreak) {
+            analysisLabel += ' 💜 Брейк';
+            analysisCls = 'break';
+        }
+        if (rec.breakPointSaved) {
+            analysisLabel += ' ✅ БП отыгран';
+        }
+        html += `<tr>
+            <td><span class="badge">${index + 1}</span></td>
+            <td>${setBadge}</td>
+            <td><span class="game-badge ${rec.winner === 1 ? 'win' : 'lose'}">${rec.winner === 1 ? getMyName() : getOpponentName()}</span></td>
+            <td><span class="game-badge">${rec.first}:${rec.second}</span></td>
+            <td>${pointsHtml}</td>
+            <td><span class="game-analysis ${analysisCls}">${analysisLabel} (${total} очк.)</span></td>
+            <td><button class="btn btn-danger" style="padding:1px 6px;font-size:0.55rem;border-radius:12px" data-index="${index}">✕</button></td>
+        </tr>`;
+    });
+    tableBody.innerHTML = html;
+    shortGamesEl.textContent = shortCount; mediumGamesEl.textContent = mediumCount;
+    longGamesEl.textContent = longCount; epicGamesEl.textContent = epicCount;
+    tiebreakGamesEl.textContent = tiebreakCount;
+    aceCount = aceCountLocal;
+    winnerCount = winnerCountLocal;
+    dfCount = dfCountLocal;
+    ueCount = ueCountLocal;
+    updateFaultStatsDisplay();
+    document.querySelectorAll('#tableBody button[data-index]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const idx = parseInt(this.getAttribute('data-index'), 10);
+            if (confirm("Удалить этот гейм и пересчитать счёт матча?")) {
+                records.splice(idx, 1);
+                recalculateStateFromRecords();
+                updateAll();
+                syncStatsToFirebase();
+            }
+        });
+    });
+}
+
+function updateStats() {
+    const count = records.length;
+    if (count === 0) { totalGamesEl.textContent = '0'; player1GamesEl.textContent = '0'; player2GamesEl.textContent = '0'; avgPointsEl.textContent = '0.0'; return; }
+    let p1 = records.filter(r => r.winner === 1).length;
+    totalGamesEl.textContent = count; player1GamesEl.textContent = p1; player2GamesEl.textContent = count - p1;
+    let totalPointsLocal = records.reduce((sum, r) => sum + r.points.length, 0);
+    avgPointsEl.textContent = (totalPointsLocal / count).toFixed(1);
+}
+
+function updateAll() { renderTable(); updateStats(); updateCurrentGameDisplay(); }
+
+// ============================================
+// СОХРАНЕНИЕ СТАТИСТИКИ КАК ИЗОБРАЖЕНИЕ
+// ============================================
+
+function saveStatsImage() {
+    console.log('📸 saveStatsImage вызвана');
+    
+    if (typeof Android === 'undefined') {
+        alert('📸 Функция доступна только в приложении');
+        return;
+    }
+    
+    if (typeof Android.saveStatsImage !== 'function') {
+        alert('❌ Метод saveStatsImage не найден в Android');
+        console.log('Доступные методы:', Object.keys(Android));
+        return;
+    }
+    
+    const statsGrid = document.getElementById('statsGrid');
+    if (!statsGrid) {
+        alert('❌ Блок статистики не найден!');
+        return;
+    }
+    
+    const cards = statsGrid.querySelectorAll('.stat-card');
+    const statsData = [];
+    
+    cards.forEach(card => {
+        const number = card.querySelector('.number');
+        const label = card.querySelector('.label');
+        if (number && label) {
+            let labelText = label.textContent.trim().replace(/\s+/g, ' ');
+            statsData.push({
+                value: number.textContent.trim(),
+                label: labelText
+            });
+        }
+    });
+    
+    if (statsData.length === 0) {
+        alert('❌ Нет данных статистики для сохранения');
+        return;
+    }
+    
+    const player1 = document.getElementById('myNameInput').value.trim() || 'Игрок1';
+    const player2 = document.getElementById('opponentNameInput').value.trim() || 'Игрок2';
+    const matchName = document.getElementById('matchNameInput').value.trim() || 'Матч';
+    const matchDate = document.getElementById('matchDateInput').value.trim() || new Date().toLocaleDateString();
+    
+    let formattedDate = matchDate;
+    if (matchDate.includes('-')) {
+        const parts = matchDate.split('-');
+        formattedDate = `${parts[2]}.${parts[1]}.${parts[0]}`;
+    }
+    
+    const now = new Date();
+    const timeStr = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
+    const fileName = `${player1} & ${player2} ${matchName} ${formattedDate} ${timeStr}`;
+    const cleanFileName = fileName.replace(/[<>:"/\\|?*]/g, '').trim();
+    
+    console.log('📸 Отправляем в Android:', cleanFileName);
+    console.log('📊 Данных:', statsData.length);
+    
+    try {
+        Android.saveStatsImage(cleanFileName, JSON.stringify(statsData));
+        console.log('✅ Данные отправлены');
+    } catch (e) {
+        console.error('❌ Ошибка:', e);
+        alert('❌ Ошибка: ' + e.message);
+    }
+}
+
+// ============================================
+// УНИВЕРСАЛЬНАЯ ФУНКЦИЯ ЭКСПОРТА
+// ============================================
+function exportGameToFile() {
+    const totalDuration = (matchStartTime && matchEndTime) ? (matchEndTime - matchStartTime) : 0;
+    const details = getPlayerDetails();
+    const tournament = tournamentInput.value.trim() || 'GSPD';
+    
+    let fileNameBase = matchNameInput.value.trim();
+    
+    if (!fileNameBase) {
+        const myName = getMyName() || 'Игрок1';
+        const opponent = getOpponentName() || 'Игрок2';
+        const date = matchDateInput.value || new Date().toISOString().split('T')[0];
+        fileNameBase = `${myName}_vs_${opponent}_${date}`;
+    }
+    
+    fileNameBase = fileNameBase.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9а-яА-Я_\-]/g, '');
+    
+    const data = {
+        name: fileNameBase,
+        myName: getMyName(),
+        opponent: getOpponentName(),
+        matchName: matchNameInput.value.trim(),
+        matchDate: matchDateInput.value.trim(),
+        matchFormat: matchFormatSelect.value,
+        tournament: tournament,
+        flag1: flag1Input.value.trim() || '',
+        flag2: flag2Input.value.trim() || '',
+        date: new Date().toLocaleString(),
+        initialServer: initialServer,
+        records: records,
+        isMatchFinished: isMatchFinished,
+        isRetired: isRetired,
+        countFault1: countFault1,
+        countFault2: countFault2,
+        countServe1: countServe1,
+        countServe2: countServe2,
+        aceCount: aceCount,
+        winnerCount: winnerCount,
+        dfCount: dfCount,
+        ueCount: ueCount,
+        breakPointsSaved: breakPointsSaved,
+        breaks: breaks,
+        breakPointsSavedP2: breakPointsSavedP2,
+        breaksP2: breaksP2,
+        details: details,
+        matchStartTime: matchStartTime ? matchStartTime.toISOString() : null,
+        matchEndTime: matchEndTime ? matchEndTime.toISOString() : null,
+        matchDuration: totalDuration
+    };
+    
+    const jsonString = JSON.stringify(data, null, 2);
+    const fileName = `${fileNameBase}.json`;
+    
+    try {
+        if (window.Android && typeof window.Android.downloadFile === 'function') {
+            window.Android.downloadFile(jsonString, fileName);
+            checkScreenshotAndAlert();
+            return;
+        }
+    } catch (e) {
+        console.log('Android не сработал:', e);
+    }
+    
+    try {
+        const blob = new Blob([jsonString], {type: 'application/json;charset=utf-8'});
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        checkScreenshotAndAlert();
+        return;
+    } catch (e) {
+        console.log('Браузерное скачивание не сработало:', e);
+    }
+    
+    fallbackCopyToClipboard(jsonString);
+}
+
+function checkScreenshotAndAlert() {
+    if (typeof Android !== 'undefined' && Android.getLastScreenshotPath) {
+        const path = Android.getLastScreenshotPath();
+        if (path && path.length > 0) {
+            alert('✅ Данные экспортированы!\n📸 Скриншот сохранён в галерею (папка TennisStats)');
+        } else {
+            alert('✅ Данные экспортированы!');
+        }
+    } else {
+        alert('✅ Данные экспортированы!');
+    }
+}
+
+function fallbackCopyToClipboard(text) {
+    try {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        alert('📋 Данные скопированы в буфер обмена!');
+    } catch (e) {
+        alert('❌ Не удалось сохранить файл.');
+    }
+}
+
+function importGameFromFile(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!data.records || !Array.isArray(data.records)) {
+                alert('Ошибка: неверный формат файла!');
+                return;
+            }
+            const id = 'import_' + Date.now();
+            savedGames[id] = {
+                name: data.name || data.matchName || 'Без названия',
+                myName: data.myName || '',
+                opponent: data.opponent || '',
+                matchName: data.matchName || data.name || '',
+                matchDate: data.matchDate || '',
+                matchFormat: data.matchFormat || '3set',
+                tournament: data.tournament || 'GSPD',
+                flag1: data.flag1 || '',
+                flag2: data.flag2 || '',
+                date: data.date || new Date().toLocaleString(),
+                initialServer: data.initialServer || 1,
+                records: JSON.stringify(data.records),
+                isMatchFinished: data.isMatchFinished || false,
+                isRetired: data.isRetired || false,
+                countFault1: data.countFault1 || 0,
+                countFault2: data.countFault2 || 0,
+                countServe1: data.countServe1 || 0,
+                countServe2: data.countServe2 || 0,
+                aceCount: data.aceCount || 0,
+                winnerCount: data.winnerCount || 0,
+                dfCount: data.dfCount || 0,
+                ueCount: data.ueCount || 0,
+                breakPointsSaved: data.breakPointsSaved || 0,
+                breaks: data.breaks || 0,
+                breakPointsSavedP2: data.breakPointsSavedP2 || 0,
+                breaksP2: data.breaksP2 || 0,
+                details: data.details || { wtn1: '', itf1: '', wtn2: '', itf2: '' },
+                matchStartTime: data.matchStartTime || null,
+                matchEndTime: data.matchEndTime || null,
+                matchDuration: data.matchDuration || 0
+            };
+            try {
+                localStorage.setItem('tennisSavedGames', JSON.stringify(savedGames));
+            } catch (err) {
+                alert('Ошибка сохранения! Возможно, недостаточно места.');
+                return;
+            }
+            loadGame(id);
+            alert('Файл успешно импортирован!');
+        } catch (error) {
+            alert('Ошибка при чтении файла: ' + error.message);
+        }
+    };
+    reader.readAsText(file);
+}
+
+function loadGame(id) {
+    if (!savedGames[id]) return;
+    currentGameId = id; const g = savedGames[id];
+    if (g.myName) myNameInput.value = g.myName;
+    if (g.opponent) opponentNameInput.value = g.opponent;
+    if (g.matchName) matchNameInput.value = g.matchName;
+    if (g.matchDate) matchDateInput.value = g.matchDate;
+    if (g.matchFormat) matchFormatSelect.value = g.matchFormat;
+    if (g.tournament) tournamentInput.value = g.tournament;
+    if (g.flag1) flag1Input.value = g.flag1;
+    if (g.flag2) flag2Input.value = g.flag2;
+    if (g.details) {
+        setPlayerDetails(g.details);
+    }
+    records = typeof g.records === 'string' ? JSON.parse(g.records) : (g.records || []);
+    initialServer = parseInt(g.initialServer || 1, 10);
+    firstServerSelect.value = initialServer;
+    isMatchFinished = g.isMatchFinished || false;
+    isRetired = g.isRetired || false;
+    countFault1 = g.countFault1 || 0;
+    countFault2 = g.countFault2 || 0;
+    countServe1 = g.countServe1 || 0;
+    countServe2 = g.countServe2 || 0;
+    aceCount = g.aceCount || 0;
+    winnerCount = g.winnerCount || 0;
+    dfCount = g.dfCount || 0;
+    ueCount = g.ueCount || 0;
+    breakPointsSaved = g.breakPointsSaved || 0;
+    breaks = g.breaks || 0;
+    breakPointsSavedP2 = g.breakPointsSavedP2 || 0;
+    breaksP2 = g.breaksP2 || 0;
+    updateFaultStatsDisplay();
+    if (g.matchStartTime) matchStartTime = new Date(g.matchStartTime);
+    if (g.matchEndTime) matchEndTime = new Date(g.matchEndTime);
+    if (g.matchDuration) {
+        const durationStr = formatDuration(g.matchDuration);
+        if (timerElement) timerElement.textContent = durationStr;
+        if (matchDurationStat) matchDurationStat.textContent = durationStr;
+    } else if (isMatchFinished && matchStartTime && matchEndTime) {
+        const durationStr = formatDuration(matchEndTime - matchStartTime);
+        if (timerElement) timerElement.textContent = durationStr;
+        if (matchDurationStat) matchDurationStat.textContent = durationStr;
+    } else {
+        if (timerElement) timerElement.textContent = '00:00';
+        if (matchDurationStat) matchDurationStat.textContent = '0:00';
+    }
+    recalculateStateFromRecords();
+    updateAll();
+    updateServerSelectOptions();
+    validateMatchFields();
+    updateServeStatus();
+    if (isMatchFinished) {
+        addPointWeBtn.disabled = true;
+        addPointThemBtn.disabled = true;
+        faultBtn.disabled = true;
+        firstServeBtn.disabled = true;
+        secondServeBtn.disabled = true;
+        document.getElementById('btnAce').disabled = true;
+        document.getElementById('btnWinner').disabled = true;
+        document.getElementById('btnDf').disabled = true;
+        document.getElementById('btnUeThem').disabled = true;
+        document.getElementById('btnUeWe').disabled = true;
+        document.getElementById('undoPointBtn').disabled = true;
+        document.getElementById('clearPointsBtn').disabled = true;
+        document.getElementById('clearCurrentGameBtn').disabled = true;
+        finishMatchBtn.disabled = true;
+        retireP1Btn.disabled = true;
+        retireP2Btn.disabled = true;
+        startMatchBtn.disabled = false;
+        startMatchBtn.textContent = '▶ Новый матч';
+        if (isRetired) {
+            livePanel.classList.remove('match-finished');
+            livePanel.classList.add('match-retired');
+        } else {
+            livePanel.classList.remove('match-retired');
+            livePanel.classList.add('match-finished');
+        }
+        serveStatus.textContent = isRetired ? '🚫 Матч завершён (снятие)' : '🏁 Матч завершён';
+    }
+}
+
+// ============================================
+// ФУНКЦИЯ ОЧИСТКИ ВСЕХ ДАННЫХ ПРИ ЗАПУСКЕ
+// ============================================
+function clearAllFields() {
+    document.getElementById('myNameInput').value = '';
+    document.getElementById('opponentNameInput').value = '';
+    document.getElementById('matchNameInput').value = '';
+    document.getElementById('tournamentInput').value = '';
+    document.getElementById('flag1Input').value = '';
+    document.getElementById('flag2Input').value = '';
+    document.getElementById('wtn1Input').value = '';
+    document.getElementById('itf1Input').value = '';
+    document.getElementById('wtn2Input').value = '';
+    document.getElementById('itf2Input').value = '';
+    
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('matchDateInput').value = today;
+    
+    document.getElementById('firstServerSelect').innerHTML = '<option value="">Выберите игрока</option>';
+    document.getElementById('matchFormatSelect').value = '3set';
+    
+    document.getElementById('shareBox').classList.remove('visible');
+    document.getElementById('shareBox').style.display = 'none';
+    
+    currentGameId = null;
+    
+    resetStatistics();
+    updateAll();
+    updateServeStatus();
+    validateMatchFields();
+    
+    if (timerElement) timerElement.textContent = '00:00';
+    if (matchDurationStat) matchDurationStat.textContent = '0:00';
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    startTime = null;
+    isMatchActive = false;
+    matchStarted = false;
+    isMatchFinished = false;
+    matchId = null;
+    matchRef = null;
+    isFirebaseListenerActive = false;
+    
+    disableAllButtons();
+    startMatchBtn.disabled = false;
+    startMatchBtn.textContent = '▶ Начать матч';
+    finishMatchBtn.disabled = true;
+    retireP1Btn.disabled = true;
+    retireP2Btn.disabled = true;
+    saveStatsBtn.disabled = true;
+    
+    myNameInput.disabled = false;
+    opponentNameInput.disabled = false;
+    matchNameInput.disabled = false;
+    matchDateInput.disabled = false;
+    tournamentInput.disabled = false;
+    flag1Input.disabled = false;
+    flag2Input.disabled = false;
+    matchFormatSelect.disabled = false;
+    document.getElementById('wtn1Input').disabled = false;
+    document.getElementById('itf1Input').disabled = false;
+    document.getElementById('wtn2Input').disabled = false;
+    document.getElementById('itf2Input').disabled = false;
+    
+    matchStatus.textContent = '⏳ Ожидание начала матча...';
+    matchStatus.className = 'match-status active';
+    matchStatus.style.background = '#fff3cd';
+    matchStatus.style.color = '#8a6a1a';
+    matchStatus.style.display = 'block';
+    livePanel.classList.remove('match-finished', 'match-retired');
+    
+    matchHistory = [];
+    saveMatchHistory();
+    renderHistory();
+}
+
+function init() {
+    try {
+        const saved = localStorage.getItem('tennisSavedGames');
+        savedGames = saved ? JSON.parse(saved) : {};
+    } catch(e) {
+        savedGames = {};
+    }
+    
+    clearAllFields();
+    
+    loadMatchHistory();
+    clearHistoryBtn.addEventListener('click', function() {
+        if (confirm('Вы уверены, что хотите очистить всю историю матчей?')) {
+            matchHistory = [];
+            saveMatchHistory();
+            renderHistory();
+        }
+    });
+    
+    if (saveStatsBtn) {
+        saveStatsBtn.disabled = true;
+        saveStatsBtn.addEventListener('click', function() {
+            saveStatsImage();
+        });
+    }
+    
+    updateServeStatus();
+    updateFaultStatsDisplay();
+    addPointWeBtn.addEventListener('click', () => addPointToPlayer(1, 'normal'));
+    addPointThemBtn.addEventListener('click', () => addPointToPlayer(2, 'normal'));
+    faultBtn.addEventListener('click', registerFault);
+    firstServeBtn.addEventListener('click', registerFirstServe);
+    secondServeBtn.addEventListener('click', registerSecondServe);
+    document.getElementById('btnAce').addEventListener('click', () => addPointToPlayer(1, 'ace'));
+    document.getElementById('btnWinner').addEventListener('click', () => addPointToPlayer(1, 'winner'));
+    document.getElementById('btnDf').addEventListener('click', () => addPointToPlayer(2, 'df'));
+    document.getElementById('btnUeThem').addEventListener('click', () => addPointToPlayer(1, 'ue'));
+    document.getElementById('btnUeWe').addEventListener('click', () => addPointToPlayer(2, 'ue'));
+    document.getElementById('undoPointBtn').addEventListener('click', undoLastPoint);
+    document.getElementById('clearPointsBtn').addEventListener('click', () => {
+        if (confirm('Очистить гейм?')) {
+            currentPoints=[];
+            pointMetadata=[];
+            currentFirst=0;
+            currentSecond=0;
+            serveAttempt = 1;
+            updateServeStatus();
+            updateCurrentGameDisplay();
+            syncStatsToFirebase();
+        }
+    });
+    document.getElementById('clearCurrentGameBtn').addEventListener('click', () => {
+        if (confirm('Сбросить весь матч?')) {
+            resetStatistics();
+            updateAll();
+            updateServeStatus();
+            validateMatchFields();
+            syncStatsToFirebase();
+            matchStatus.textContent = '⏳ Матч сброшен';
+            matchStatus.className = 'match-status active';
+            matchStatus.style.background = '#fff3cd';
+            matchStatus.style.color = '#8a6a1a';
+            matchStatus.style.display = 'block';
+        }
+    });
+    startMatchBtn.addEventListener('click', startMatch);
+    finishMatchBtn.addEventListener('click', finishMatch);
+    retireP1Btn.addEventListener('click', () => retirePlayer(1));
+    retireP2Btn.addEventListener('click', () => retirePlayer(2));
+    if (exportGameBtn) exportGameBtn.addEventListener('click', exportGameToFile);
+    if (importGameBtn) importGameBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', function() {
+        if (!this.files[0]) return;
+        importGameFromFile(this.files[0]);
+        this.value = '';
+    });
+    firstServerSelect.addEventListener('change', function() {
+        initialServer = parseInt(this.value, 10);
+        updateServerIndicator();
+        syncStatsToFirebase();
+    });
+    myNameInput.addEventListener('input', () => {
+        updateServerSelectOptions();
+        validateMatchFields();
+        updateCurrentGameDisplay();
+    });
+    opponentNameInput.addEventListener('input', () => {
+        updateServerSelectOptions();
+        validateMatchFields();
+        updateCurrentGameDisplay();
+    });
+    matchNameInput.addEventListener('input', validateMatchFields);
+    matchDateInput.addEventListener('input', validateMatchFields);
+    tournamentInput.addEventListener('input', validateMatchFields);
+    flag1Input.addEventListener('input', validateMatchFields);
+    flag2Input.addEventListener('input', validateMatchFields);
+    
+    updateAll();
+    updateServerSelectOptions();
+    validateMatchFields();
+}
+
+if (sessionStorage.getItem('tennisLoggedIn') === 'true') {
+    init();
+}
+</script>
+</body>
+</html>
