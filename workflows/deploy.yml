@@ -1,0 +1,45 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. Скачиваем код из репозитория
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      # 2. СОЗДАЁМ config.js из секрета (безопасно!)
+      - name: Create config.js
+        run: |
+          echo "// ⚠️ Этот файл создан автоматически через GitHub Actions" > config.js
+          echo "const FIREBASE_CONFIG = {" >> config.js
+          echo "    apiKey: \"${{ secrets.FIREBASE_API_KEY }}\"," >> config.js
+          echo "    authDomain: \"tennis-stats-b2b0e.firebaseapp.com\"," >> config.js
+          echo "    databaseURL: \"https://tennis-stats-b2b0e-default-rtdb.firebaseio.com\"," >> config.js
+          echo "    projectId: \"tennis-stats-b2b0e\"," >> config.js
+          echo "    storageBucket: \"tennis-stats-b2b0e.firebasestorage.app\"," >> config.js
+          echo "    messagingSenderId: \"821472668066\"," >> config.js
+          echo "    appId: \"1:821472668066:web:e93d6bec4af93fde5a6afb\"," >> config.js
+          echo "    measurementId: \"G-VJC0J5X45C\"" >> config.js
+          echo "};" >> config.js
+      
+      # 3. ПРОВЕРКА: показываем содержимое config.js (без ключа, он скрыт)
+      - name: Verify config.js (без ключа)
+        run: |
+          echo "✅ config.js создан!"
+          cat config.js | sed 's/\"${{ secrets.FIREBASE_API_KEY }}\"/\"***HIDDEN***\"/g'
+      
+      # 4. Деплоим на GitHub Pages
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./
+          publish_branch: gh-pages
+          force_orphan: true
