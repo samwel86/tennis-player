@@ -10,11 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # 1. Скачиваем код из репозитория
+      # ✅ Используем последнюю версию v4 (поддерживает Node.js 24)
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
-      # 2. СОЗДАЁМ config.js из секрета (безопасно!)
       - name: Create config.js
         run: |
           echo "// ⚠️ Этот файл создан автоматически через GitHub Actions" > config.js
@@ -29,15 +28,14 @@ jobs:
           echo "    measurementId: \"G-VJC0J5X45C\"" >> config.js
           echo "};" >> config.js
       
-      # 3. ПРОВЕРКА: показываем содержимое config.js (без ключа, он скрыт)
-      - name: Verify config.js (без ключа)
+      - name: Verify config.js
         run: |
           echo "✅ config.js создан!"
           cat config.js | sed 's/\"${{ secrets.FIREBASE_API_KEY }}\"/\"***HIDDEN***\"/g'
       
-      # 4. Деплоим на GitHub Pages
+      # ✅ Используем последнюю версию v4 (поддерживает Node.js 24)
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./
